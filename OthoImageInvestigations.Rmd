@@ -1,0 +1,280 @@
+---
+title: "Thermal Infra Red crevasses"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+This Notebook investigates orthorectified thermal infra red data
+In particular an animation is prepared of the data.
+Time series from flat snow near the weather station are compared to weather station outgoing long wave
+Time series from flat snow and nearby sloped snow are compared to test orientation impact
+Time series from flat snow and crevassed snow are compared
+Images are processed according to Christen et al., (2012) to determine fpattern, ftotal and Mtrend 
+Timing of when melt occurs is compared as well as temperature difference
+
+***Things to do
+The infra red camera moved a bit during operation as it was mounted on a tripod sitting on snow.
+I need to track the movement, and correct by translating the images by the appropriate number of pixels.
+A notable shift occurs at about 8:49 am on the 25th. This aligns with a step change in the difference between the AWS and the camera.
+Could this have been when the camera was checked in the morning?
+Arioli (2024) used "MatchTemplate" fuction from OpenCV Python library, and translated by the median displacement using warpAffine from OpenCV
+It should be possible to run the python libraries through R.
+
+Load the required libraries
+```{r}
+  #Check for and load required libraries and packages
+  list.of.packages <- c("R.matlab","lubridate","tidyr","plotly","rasterly","stringr","xts","abind","bioRad")
+  new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+  if(length(new.packages)) install.packages(new.packages,repos='https://cloud.r-project.org')
+  
+  librariesToLoad <- list.of.packages[!(list.of.packages %in% (.packages()))]
+  if(length(librariesToLoad)) sapply(librariesToLoad, library, character.only = TRUE)
+  
+  ProjectDirectory  <- "D:\\Projects\\UC\\Heather Purdie\\Purdie-TasmanSaddle-Crevasses"
+  UCMirrorDirectory <- file.path(ProjectDirectory,"CopiesFromUC")
+  DataDirectory     <- file.path(ProjectDirectory,"Crevasse Teperature Variability\\Data")
+
+  OrthoFileDirectory<- file.path(DataDirectory,"GIS","OrthoImages")
+  DEMFile           <- file.path(DataDirectory,"GIS","DEM_AOI_and_TG_WGS84_50cm.tif")
+  DEMHiResFile      <- file.path(UCMirrorDirectory,"TG_2020_GIS","TG_2020_demNZTM.tif")
+  WeatherStaionSitesFile <- file.path(DataDirectory,"GIS","GEO-XH.shp")
+  PointsOfInterestFile <- file.path(DataDirectory,"GIS","POI_IR.shp")
+  UpperWeatherStationDataFile <- file.path(UCMirrorDirectory,"TAS_2020","cr300 data","Raw data_CR300","CR300Series ts upper_ten_min_latest.dat")
+  LowerWeatherStationDataFile <- file.path(UCMirrorDirectory,"TAS_2020","cr300 data","Raw data_CR300","CR300Series-ts-lower_ten_min_latest.dat")
+```
+
+Load the OrthoImages into a terra::SpatRaster object
+```{r}
+OrthoFileNames <- list.files(OrthoFileDirectory,full.names = TRUE)
+OrthoDateTimesText <- basename(OrthoFileNames) %>% str_extract("2020022[4-7]_[0-9]{2}_[0-9]{2}") 
+OrthoDateTimes <- OrthoDateTimesText %>% as.POSIXct(tz="NZ",format="%Y%m%d_%H_%M")
+
+#Limit the number of files to load during testing
+ImageRange <- c(2:160)
+OrthoRasters <- terra::rast(OrthoFileNames[order(OrthoDateTimes)][ImageRange])
+OrthoDateTimes <- OrthoDateTimes[order(OrthoDateTimes)][ImageRange]
+names(OrthoRasters) <- OrthoDateTimes
+```
+
+
+Load the LW data from the weather stations and extract the period that matches the thermal imagery
+```{r}
+Lower_AWS_Metadata <- readLines(con=LowerWeatherStationDataFile,n=4)
+Lower_AWS_Data <- read.csv(LowerWeatherStationDataFile, skip=4,header = FALSE)
+names(Lower_AWS_Data) <- Lower_AWS_Metadata[2] %>% gsub('\"','',.) %>% strsplit(",") %>% unlist()
+Lower_AWS_Data$TIMESTAMP <- as.POSIXct(Lower_AWS_Data$TIMESTAMP,format = "%Y-%m-%d %H:%M:%S", tz="NZ")
+
+Upper_AWS_Metadata <- readLines(con=UpperWeatherStationDataFile,n=4)
+Upper_AWS_Data <- read.csv(UpperWeatherStationDataFile, skip=4,header = FALSE)
+names(Upper_AWS_Data) <- Upper_AWS_Metadata[2] %>% gsub('\"','',.) %>% strsplit(",") %>% unlist()
+Upper_AWS_Data$TIMESTAMP <- as.POSIXct(Upper_AWS_Data$TIMESTAMP,format = "%Y-%m-%d %H:%M:%S", tz="NZ")
+
+#Restrict the AWS data to just the OrthoImage time period + 1 hour either side
+Lower_AWS_Data <- Lower_AWS_Data %>% dplyr::filter(TIMESTAMP > (OrthoDateTimes[1] - 20*60), TIMESTAMP < (tail(OrthoDateTimes,1)+ 20 * 60))
+Upper_AWS_Data <- Upper_AWS_Data %>% dplyr::filter(TIMESTAMP > (OrthoDateTimes[1]-20*60), TIMESTAMP < (tail(OrthoDateTimes,1)+ 20*60))
+```
+
+Calculate the Surface temperature from the weather station long wave radiation measurements using the Stefan-Boltzmann equation
+```{r}
+StefanBoltzmannConstant <- 5.670374419 * 10^-8 #w /m2/K4
+SnowEmissivity <- 0.99 #Need a citation for this, maybe Griggs (1968) Griggs, M., Emissivities of natural surfaces in the 8- to 14-micron spectral region, J. Geophys. Res., 73. 7545-7551, 1968. 
+#But see Waren (1982) section M, figure 18 (b) which provides directional emissivities indicating a variation from 0.98 at 80deg to 0.995 for 0deg, though a strong dropoff above 10 um
+#T= (M/sigma/emissivity)^0.25 where M is the radiated energy in watts per square metre, sigma is the staffan-Boltzmann constant, and T is the surface temperature in Kelvin
+Lower_AWS_surfaceTdegK <- (Lower_AWS_Data$outgoingLW_Avg / StefanBoltzmannConstant / SnowEmissivity)^0.25
+Lower_AWS_surfaceTdegC <- Lower_AWS_surfaceTdegK - 273.15
+#Offset the AWS data so that the maximum is 0degC
+Lower_AWS_surface_offset_TdegC <- Lower_AWS_surfaceTdegC - (max(Lower_AWS_surfaceTdegC) - 0)
+#Clip the AWS data so that the maximum is 0degC
+Lower_AWS_surface_clipped_TdegC <- pmin(0,Lower_AWS_surfaceTdegC)
+
+Upper_AWS_surfaceTdegK <- (Upper_AWS_Data$outgoingLW_Avg / StefanBoltzmannConstant / SnowEmissivity)^0.25
+Upper_AWS_surfaceTdegC <- Upper_AWS_surfaceTdegK - 273.15
+#Offset the AWS data so that the maximum is 0degC
+Upper_AWS_surface_offset_TdegC <- Upper_AWS_surfaceTdegC - (max(Upper_AWS_surfaceTdegC) - 0)
+#Clip the AWS data so that the maximum is 0degC
+Upper_AWS_surface_clipped_TdegC <- pmin(0,Upper_AWS_surfaceTdegC)
+
+#Convert to time series xts objects
+Lower_AWS_surfaceTdegC_xts <- xts(cbind(Lower_AWS_surfaceTdegC,Lower_AWS_surface_offset_TdegC,Lower_AWS_surface_clipped_TdegC), order.by = Lower_AWS_Data$TIMESTAMP)
+Upper_AWS_surfaceTdegC_xts <- xts(cbind(Upper_AWS_surfaceTdegC,Upper_AWS_surface_offset_TdegC,Upper_AWS_surface_clipped_TdegC), order.by = Upper_AWS_Data$TIMESTAMP)
+```
+
+Sample the Ortho SpatRasters at the weather station sites. Sample a 3 x 3 pixel area and make sure it is reasonable flat and not crevassed.
+Use the difference to the AWS measurements to correct the camera images
+```{r}
+#Start with the upper site, because there is less likely to sample over a crevasse
+UpperAWSLocation <- terra::vect(WeatherStaionSitesFile) %>% terra::subset(.$Comment == 'aws top')
+#Get the coordinates of the Climate station and move 10 m south to get into a similar area but away from the station
+UpperAWSCoords10mS <- terra::shift(UpperAWSLocation,dy=-10) 
+
+#Create a polygon that buffers this point by at least 1.5 the resolution of the raster
+UpperSamplePolygon <- terra::buffer(UpperAWSCoords10mS, width = ceiling(1.5 * terra::res(OrthoRasters)))
+
+IR_SampleAtUpperAWS <- terra::extract(OrthoRasters,y = UpperSamplePolygon,fun = mean,ID=FALSE) %>% unlist()
+
+#Create a time series object with xts
+IR_SampleUpperAWS_xts <- xts(IR_SampleAtUpperAWS, order.by = OrthoDateTimes)
+#Sample/interpolate the AWS data at the ortho-image times
+UpperIRandAWS <- merge(IR_SampleUpperAWS_xts,Upper_AWS_surfaceTdegC_xts)
+UpperIRandAWS$InterpolatedAWS <- na.approx(UpperIRandAWS$Upper_AWS_surface_offset_TdegC)
+UpperIRandAWS <- UpperIRandAWS[!is.na(UpperIRandAWS$IR_SampleUpperAWS_xts),c("IR_SampleUpperAWS_xts","InterpolatedAWS")]
+
+#Calculate a difference
+UpperIRandAWS$Diff <- UpperIRandAWS$IR_SampleUpperAWS_xts - UpperIRandAWS$InterpolatedAWS
+
+#Apply corrections to the infra red data
+UpperIRandAWS$IR_Corrected <- UpperIRandAWS$IR_SampleUpperAWS_xts - UpperIRandAWS$Diff
+
+#Repeat for AWS 2
+LowerAWSLocation <- terra::vect(WeatherStaionSitesFile) %>% terra::subset(.$Comment == 'aws lower')
+#Get the coordinates of the Climate station and move 10 m south to get into a similar area but away from the station
+LowerAWSCoords10mS <- terra::shift(LowerAWSLocation,dy=-10) 
+
+#Create a polygon that buffers this point by at least 1.5 the resolution of the raster
+LowerSamplePolygon <- terra::buffer(LowerAWSCoords10mS, width = ceiling(1.5 * terra::res(OrthoRasters)))
+
+IR_SampleAtLowerAWS <- terra::extract(OrthoRasters,y = LowerSamplePolygon,fun = mean,ID=FALSE) %>% unlist()
+
+#Create a time series object with xts
+IR_SampleLowerAWS_xts <- xts(IR_SampleAtLowerAWS, order.by = OrthoDateTimes)
+#Sample/interpolate the AWS data at the ortho-image times
+LowerIRandAWS <- merge(IR_SampleLowerAWS_xts,Lower_AWS_surfaceTdegC_xts)
+LowerIRandAWS$InterpolatedAWS <- na.approx(LowerIRandAWS$Lower_AWS_surface_offset_TdegC)
+LowerIRandAWS <- LowerIRandAWS[!is.na(LowerIRandAWS$IR_SampleLowerAWS_xts),c("IR_SampleLowerAWS_xts","InterpolatedAWS")]
+
+#Calculate a difference
+LowerIRandAWS$Diff <- LowerIRandAWS$IR_SampleLowerAWS_xts - LowerIRandAWS$InterpolatedAWS
+
+#Apply corrections to the infra-red data
+LowerIRandAWS$IR_Corrected <- LowerIRandAWS$IR_SampleLowerAWS_xts - LowerIRandAWS$Diff
+
+#Combine both AWS data into a single xts object
+BothAWSIRandAWS <- merge(UpperIRandAWS,LowerIRandAWS,suffixes = c("Upper","Lower"))
+# {
+# plot(Upper_AWS_surfaceTdegC, col="red",ylim=c(-20,3), type="l")
+# lines(IR_SampleAtUpperAWS)
+# lines(Difference,col="blue")
+# }
+```
+
+Do a nice plot_ly plot showing the corrected IR surface temperature for each AWS site.
+
+Have a line through 0 deg line.
+```{r}
+SurfaceTemperatureData <- data.frame(DateTime = index(BothAWSIRandAWS), coredata(BothAWSIRandAWS))
+SurfaceTemperaturePlots <- plot_ly(SurfaceTemperatureData, x = ~DateTime, type = 'scatter', mode = 'lines',
+  y = ~InterpolatedAWSUpper, name = "Upper AWS Observed", line = list(color="blue",width=4),
+  text = ~format(DateTime,"%H:%M %d %b"),
+  hovertemplate = paste('%{y:.2f} <sup>o</sup>C')) %>%
+  add_trace(y = ~IR_SampleUpperAWS_xtsUpper, name = "Upper AWS Camera", line = list(color="blue",width=2)) %>%
+  add_trace(y = ~DiffUpper, name = "Upper AWS Difference", line = list(color="lightblue",width=2)) %>%
+  add_trace(y = ~InterpolatedAWSLower, name = "Lower AWS Observed", line = list(color="green",width=4)) %>%
+  add_trace(y = ~IR_SampleLowerAWS_xtsLower, name = "Lower AWS Camera", line = list(color="green",width=2)) %>%
+  add_trace(y = ~DiffLower, name = "Lower AWS Difference", line = list(color="lightgreen",width=2)) %>%
+  layout(yaxis=list(title = "Surface temperature <sup>o</sup>C", hoverformat = '.2f oC'),
+         xaxis=list(title="",dtick="10800000",tickformat="%H:%M<br>%d %b",hoverformat="%H:%M %d %b"),
+         hovermode="x")
+SurfaceTemperaturePlots
+```
+
+
+Plot the LW-based temperatures against the orthoimage temperatures
+
+Get a correction for each image
+
+Apply the correction. 
+Use a simple average of the corrections determined at each climate station.
+Could possibly use some interpolation, but it's not clear if proximity, or aspect, or elevation
+are the important covariates to the error, and with only two sites, it can't be determined.
+
+Calculate difference images with respect the upper AWS sampled pixels
+```{r}
+AverageDifference <- as.numeric(coredata(UpperIRandAWS$Diff + LowerIRandAWS$Diff)) / 2 
+CorrectedOrthoImages <- OrthoRasters - AverageDifference
+
+DifferenceOrthoImages <- OrthoRasters - IR_SampleAtUpperAWS
+```
+
+
+Animate the corrected ortho-images and the difference ortho-images
+Remove the x/y axis labels. Make the image numbers into times.
+Change the Difference scale so that it ignores the reflectors
+
+```{r}
+#Start by converting the rasters into matrices of xyz
+lapply(list(CorrectedOrthoImages, DifferenceOrthoImages), function(OrthoImages) {
+  CorrectedMatrices <- lapply(OrthoImages, function(x) {terra::as.matrix(x,wide=TRUE)})
+  Matrix3D <- abind(CorrectedMatrices, along=3)
+  browser()
+  PlotMin <- trunc(min(Matrix3D, na.rm=TRUE))
+  PlotMax <- ceiling(max(Matrix3D, na.rm=TRUE))
+  
+  ListofEachImagesXYZ <- lapply(seq(1,150, by = 1), function(ImageNo){
+    testdata <- reshape2::melt(Matrix3D[,,ImageNo])
+    testdata$ImageNo <- ImageNo
+    testdata
+  })
+  testdata3 <- do.call("rbind",ListofEachImagesXYZ)
+  #testdata3$value[testdata3$value > -4] <- NA
+  #testdata3$value[testdata3$value < -10] <- NA
+  vals <- unique(scales::rescale(c(testdata3[[1]])))
+  o <- order(vals, decreasing = FALSE)
+  cols <- scales::col_numeric("Blues", domain = NULL)(vals)
+  colz <- setNames(data.frame(vals[o], cols[o]), NULL)
+  plot_ly(testdata3, y = ~(-Var1), x = ~Var2,z = ~value, frame = ~ImageNo, zauto = FALSE, zmin=PlotMin, zmax=PlotMax) %>%
+    layout(xaxis = list(range = c(-160,0,150)),
+           yaxis = list(range=c(-140,0))) %>%
+    
+    add_rasterly_heatmap()
+})
+
+```
+Repeat the above, except for the raw images before orthorectification
+```{r}
+
+```
+
+Calculate some Christen variables.
+ftrend, the temporal departure of the instantaneous temperature of a pixel from its
+temporal average temperature
+mpattern, the spatial departure of the temporally averaged temperature of a pixel from the entire spatiotemporal average of the time sequence
+mtotal, the spatiotemporal average of all images
+mtrend
+fpattern
+ftotal
+```{r}
+NightTimeDateTimes   <- xts(order.by=OrthoDateTimes)["T03:00/T07:00"]
+DayTimeDateTimes     <- xts(order.by=OrthoDateTimes)["T11:00/T18:00"]
+DayTimeIndices <- which(OrthoDateTimes %in% index(DayTimeDateTimes))
+NightTimeIndices <- which(OrthoDateTimes %in% index(NightTimeDateTimes))
+x <- OrthoRasters[[NightTimeIndices]]
+averagetemperatureseries <- terra::global(x, fun="mean", na.rm=TRUE) %>% unlist()
+mtotal <- averagetemperatureseries %>% mean(na.rm=TRUE)
+mtrend <- averagetemperatureseries - mtotal
+mpattern <- terra::mean(x) - mtotal
+
+fpattern <- x - averagetemperatureseries
+ftrend   <- x - terra::mean(x)
+ftotal   <- ftrend - mtrend
+
+terra::plot(fpattern)
+terra::plot(ftrend)
+terra::plot(mpattern)
+plot(mtrend,type="l")
+```
+Not sure how any of that helps...
+So I reckon I classify the image by slope, orientation towards the camera, elevation
+non-crevasse vs crevasse and get some time series for their temperature
+```{r}
+
+```
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
