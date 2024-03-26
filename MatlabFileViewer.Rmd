@@ -1,0 +1,117 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+R notebook to have an exploratory look at the Optrix infra red files that have been previously processed in Matlab.
+
+Load libraries and set directory and file names
+```{r}
+  #Check for and load required libraries and packages
+  list.of.packages <- c("R.matlab","lubridate","tidyr","plotly","rasterly")
+  new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+  if(length(new.packages)) install.packages(new.packages,repos='https://cloud.r-project.org')
+  
+  librariesToLoad <- list.of.packages[!(list.of.packages %in% (.packages()))]
+  if(length(librariesToLoad)) sapply(librariesToLoad, library, character.only = TRUE)
+  
+  ProjectDirectory <- "D:\\Projects\\UC\\Heather Purdie\\Purdie-TasmanSaddle-Crevasses"
+  UCMirrorDirectory <- file.path(ProjectDirectory,"CopiesFromUC")
+  DataDirectory <- file.path(ProjectDirectory,"Crevasse Teperature Variability\\Data")
+  MatlabFile <- file.path(UCMirrorDirectory,"IR camera stuff\\data analysis from Raj for 2020\\Tier_4_timeseries.mat")
+```
+
+Load a matlab file and have a look at it
+```{r}
+data <- readMat(MatlabFile)
+str(data)
+```
+So the file includes a 3 dimensional array called "timeseries", assumed to be 398 image files, each 382 x 285 cells.
+The Pi 400 should generate files that are 382 x 288 pixels, so it seems we've lost 3 rows along the way...
+The "mean.timeseries" list appears to simply be a mean of all the data for each step of the third dimension
+The "time" list is a time stamp but it only has a resolution to 1 dp.
+Matlab stores time with an origin of 0000-01-00 YYYY-mm-dd, which is just silly.
+But can be converted to an R date with (from https://stackoverflow.com/questions/64997532/how-to-convert-the-date-using-r-from-a-matlab-serial-date-number)
+I am assuming that matlab saves everything in UTC, even though I think we are really working with NZST
+```{r}
+Matlab2RdateTime <- function(val) as.POSIXct((val-1)*86400, origin = "0000-01-01", tz = "UTC")
+
+#Convert, but force TimeZone name to be NZST
+RDateTimes <- Matlab2RdateTime(data$time) %>% force_tz(tzone = "NZ")
+```
+
+We can check whether the timing is correct by plotting the average temperature against time
+```{r}
+plot(x=RDateTimes[1:100],y=data$mean.timeseries[,1:100],typ="l")
+plot(x=RDateTimes,y=data$mean.timeseries,typ="l")
+
+PlotData <- data.frame(Date <- RDateTimes, Temperature = data$mean.timeseries[1,])
+#PlotData <- PlotData[complete.cases(PlotData),]
+
+plot_ly(PlotData, x = ~Date, y=~Temperature) %>%
+  add_trace( mode='lines')
+
+plot_ly(PlotData, x = seq(1,nrow(PlotData)), y=~Temperature) %>%
+  add_trace( mode='lines')
+plot_ly(PlotData, x = ~Date, y=~Temperature) %>%
+  add_trace( mode='lines')
+```
+This needs to be checked with the automatic weather station data, or maybe some other log
+somewhere
+```{r}
+rotate <- function(x) t(apply(x, 2, rev))
+
+image(rotate(data$timeseries[,,49]),zlim=c(-20,-10))
+RDateTimes[49]
+
+Image49 <- terra::rast(data$timeseries[,,49])
+terra::writeRaster(Image49,file.path(DataDirectory,"Image49.tif"),overwrite=TRUE)
+```
+Try viewing an image in rasterly
+rasterly accepts a list of xyz
+```{r}
+
+ListofEachImagesXYZ <- lapply(seq(240,270, by = 1), function(ImageNo){
+  testdata <- reshape2::melt(data$timeseries[,,ImageNo])
+  testdata$ImageNo <- ImageNo
+  testdata
+})
+testdata3 <- do.call("rbind",ListofEachImagesXYZ)
+testdata3$value[testdata3$value > -4] <- NA
+testdata3$value[testdata3$value < -10] <- NA
+
+plot_ly(testdata3, y = ~(-Var1), x = ~Var2,z = ~value, frame = ~ImageNo) %>%
+  add_rasterly_heatmap()
+```
+And here is a 3D version
+```{r}
+plot_ly(z = data$timeseries[,,236], type = "surface") %>% layout(scene=list(aspectmode="manual",aspectratio=list(x=1,y=1, z=0.2),zaxis=list(range = c(-20,0)))) 
+```
+
+
+
+Export an image to enable a manual masking of the areas of no interest
+```{r}
+#Yet to be done
+```
+
+Plot the images enabling investigation of pixel values in a hope of identifying where the GCP's 
+or climate stations are
+```{r}
+#Yet to be done
+```
+
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+plot(cars)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
