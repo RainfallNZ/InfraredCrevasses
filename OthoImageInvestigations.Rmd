@@ -26,7 +26,7 @@ It should be possible to run the python libraries through R.
 Load the required libraries
 ```{r}
   #Check for and load required libraries and packages
-  list.of.packages <- c("R.matlab","lubridate","tidyr","plotly","rasterly","stringr","xts","abind","bioRad")
+  list.of.packages <- c("R.matlab","lubridate","tidyr","plotly","rasterly","stringr","xts","abind","bioRad","terra")
   new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
   if(length(new.packages)) install.packages(new.packages,repos='https://cloud.r-project.org')
   
@@ -39,6 +39,8 @@ Load the required libraries
 
   OrthoFileDirectory<- file.path(DataDirectory,"GIS","OrthoImages")
   DEMFile           <- file.path(DataDirectory,"GIS","DEM_AOI_and_TG_WGS84_50cm.tif")
+  ViewshedFile      <- file.path(DataDirectory,"GIS","Viewshed.tif")
+  SlopeFile         <- file.path(DataDirectory,"GIS","Slope.tif")
   DEMHiResFile      <- file.path(UCMirrorDirectory,"TG_2020_GIS","TG_2020_demNZTM.tif")
   WeatherStaionSitesFile <- file.path(DataDirectory,"GIS","GEO-XH.shp")
   PointsOfInterestFile <- file.path(DataDirectory,"GIS","POI_IR.shp")
@@ -57,6 +59,10 @@ ImageRange <- c(2:160)
 OrthoRasters <- terra::rast(OrthoFileNames[order(OrthoDateTimes)][ImageRange])
 OrthoDateTimes <- OrthoDateTimes[order(OrthoDateTimes)][ImageRange]
 names(OrthoRasters) <- OrthoDateTimes
+
+#Mask them by the viewshed
+Mask <- terra::rast(ViewshedFile) %>% terra::project(OrthoRasters,method="near") %>% terra::resample(OrthoRasters, method = "near")
+OrthoRasters <- terra::mask(OrthoRasters, Mask, maskvalues=1, inverse=TRUE)
 ```
 
 
@@ -208,7 +214,6 @@ Change the Difference scale so that it ignores the reflectors
 lapply(list(CorrectedOrthoImages, DifferenceOrthoImages), function(OrthoImages) {
   CorrectedMatrices <- lapply(OrthoImages, function(x) {terra::as.matrix(x,wide=TRUE)})
   Matrix3D <- abind(CorrectedMatrices, along=3)
-  browser()
   PlotMin <- trunc(min(Matrix3D, na.rm=TRUE))
   PlotMax <- ceiling(max(Matrix3D, na.rm=TRUE))
   
@@ -218,13 +223,16 @@ lapply(list(CorrectedOrthoImages, DifferenceOrthoImages), function(OrthoImages) 
     testdata
   })
   testdata3 <- do.call("rbind",ListofEachImagesXYZ)
+  testdata3$DateTime <- format(OrthoDateTimes[testdata3$ImageNo],"%d %H:%M")
   #testdata3$value[testdata3$value > -4] <- NA
   #testdata3$value[testdata3$value < -10] <- NA
   vals <- unique(scales::rescale(c(testdata3[[1]])))
   o <- order(vals, decreasing = FALSE)
   cols <- scales::col_numeric("Blues", domain = NULL)(vals)
   colz <- setNames(data.frame(vals[o], cols[o]), NULL)
-  plot_ly(testdata3, y = ~(-Var1), x = ~Var2,z = ~value, frame = ~ImageNo, zauto = FALSE, zmin=PlotMin, zmax=PlotMax) %>%
+  plot_ly(testdata3, y = ~(-Var1), x = ~Var2,z = ~value, 
+          frame = ~DateTime, 
+          zauto = FALSE, zmin=PlotMin, zmax=PlotMax) %>%
     layout(xaxis = list(range = c(-160,0,150)),
            yaxis = list(range=c(-140,0))) %>%
     
@@ -246,11 +254,12 @@ mtrend
 fpattern
 ftotal
 ```{r}
-NightTimeDateTimes   <- xts(order.by=OrthoDateTimes)["T03:00/T07:00"]
-DayTimeDateTimes     <- xts(order.by=OrthoDateTimes)["T11:00/T18:00"]
-DayTimeIndices <- which(OrthoDateTimes %in% index(DayTimeDateTimes))
-NightTimeIndices <- which(OrthoDateTimes %in% index(NightTimeDateTimes))
-x <- OrthoRasters[[NightTimeIndices]]
+# NightTimeDateTimes   <- xts(order.by=OrthoDateTimes)["T03:00/T07:00"]
+# DayTimeDateTimes     <- xts(order.by=OrthoDateTimes)["T11:00/T18:00"]
+# DayTimeIndices <- which(OrthoDateTimes %in% index(DayTimeDateTimes))
+# NightTimeIndices <- which(OrthoDateTimes %in% index(NightTimeDateTimes))
+# x <- OrthoRasters[[NightTimeIndices]]
+x <- OrthoRasters
 averagetemperatureseries <- terra::global(x, fun="mean", na.rm=TRUE) %>% unlist()
 mtotal <- averagetemperatureseries %>% mean(na.rm=TRUE)
 mtrend <- averagetemperatureseries - mtotal
@@ -265,13 +274,168 @@ terra::plot(ftrend)
 terra::plot(mpattern)
 plot(mtrend,type="l")
 ```
-Not sure how any of that helps...
-So I reckon I classify the image by slope, orientation towards the camera, elevation
-non-crevasse vs crevasse and get some time series for their temperature
+Now calculate the temporal standard deviation of each pixel in the ftrend product
+then get the probability distribution of the ftrend standard deviation
+Hopefully it is bimodal
+
 ```{r}
+fpatternSD <- terra::app(fpattern,"std")
+
+#Start by converting the rasters into matrices of xyz
+
+  ImageMatrix <- terra::as.matrix(fpatternSD,wide=TRUE)
+
+    testdata <- reshape2::melt(ImageMatrix)
+
+  vals <- unique(scales::rescale(c(testdata[[1]])))
+  o <- order(vals, decreasing = FALSE)
+  cols <- scales::col_numeric("Blues", domain = NULL)(vals)
+  colz <- setNames(data.frame(vals[o], cols[o]), NULL)
+  plot_ly(testdata, y = ~(-Var1), x = ~Var2,z = ~value) %>%
+    layout(xaxis = list(range = c(-160,0,150)),
+           yaxis = list(range=c(-140,0))) %>%
+    
+    add_rasterly_heatmap()
+
+fpatternSDValues <- terra::values(fpattern)
+terra::plot(fpatternSD)
+density(fpatternSD)
+```
+So it's not very bi-modal, but I could simply threshold on below 0.55, and above 0.6
+Select percentile range that covers the high standard deviation values
+Select a percentile range that covers the low standard deviation range
+Select a random sample of pixels from the low SD and high SD sets
+```{r}
+SampleNo <- 10
+#Get all the high variation pixels
+highSDPixels <-fpatternSD %>% terra::clamp(lower = 0.7, values=FALSE) %>% not.na()
+highSDPixels[highSDPixels < 1] <- NA
+
+#sample the cells
+HighSDPixelsSampleCells <- terra::spatSample(highSDPixels, size = SampleNo, method="random", replace=FALSE,cells=TRUE,na.rm=TRUE)
+
+#Initialise the sample raster
+HighSDPixelSamples <- highSDPixels
+
+#Set all the non-sampled cells to NA
+HighSDPixelSamples[!cells(HighSDPixelSamples) %in% HighSDPixelsSampleCells$cell] <- NA
+
+#For some reason I end up with 1 extra sample. See Issue#4. Explictly limited to the SampleNo
+HighSDSamplePoints <- terra::as.points(HighSDPixelSamples)[1:SampleNo]
+{
+terra::plot(highSDPixels, col="black")
+terra::points(HighSDSamplePoints, col="green",pch=1,cex=1.1)
+}
+NoOfHighSDPixels <- terra::global(!(is.na(highSDPixels)), sum)%>% dplyr::pull()
+
+LowSDPixels <- fpatternSD %>% terra::clamp(upper = 0.55, values=FALSE) %>% not.na()
+LowSDPixels[LowSDPixels < 1] <- NA
+LowSDSamplePoints <- terra::as.points(LowSDPixels)
+
+#sample the cells
+LowSDPixelsSampleCells <- terra::spatSample(LowSDPixels, size = SampleNo, method="random", replace=FALSE,cells=TRUE,na.rm=TRUE)
+
+#Initialise the sample raster
+LowSDPixelSamples <- LowSDPixels
+
+#Set all the non-sampled cells to NA
+LowSDPixelSamples[!cells(LowSDPixelSamples) %in% LowSDPixelsSampleCells$cell] <- NA
+LowSDSamplePoints <- terra::as.points(LowSDPixelSamples)
+
+{
+ terra::plot(LowSDPixels, col="black")
+terra::points(LowSDSamplePoints, col="green",pch=1,cex=1.1) 
+}
+
+```
+Dot plot over time of the fpattern high SD values. Overplot dot plot over time the low SD values
+```{r}
+SlopeData <- terra::rast(SlopeFile)
+
+ftrendHighSDSamples <- terra::extract(ftrend,HighSDSamplePoints,raw=TRUE,ID=FALSE) %>% t() %>% as.data.frame()
+ftrendHighSDSamples$SD <- "High"
+ftrendHighSDSamples$DateTime <- as.POSIXct(names(ftrend))
+#Convert to long format
+PlotDataHigh <- tidyr::pivot_longer(ftrendHighSDSamples, cols=`V1`:`V10`,names_to="SampleID",values_to="ftrend")
+
+#Sample the slope at the same locations and add to the plot data
+HighSlopeSamples <- terra::extract(SlopeData,HighSDSamplePoints,raw=TRUE,ID=TRUE) %>% as.data.frame() %>% dplyr::mutate(ID = paste0("V",ID))
+PlotDataHigh$Slope <- HighSlopeSamples$slope[match(PlotDataHigh$SampleID,HighSlopeSamples$ID)]
+
+#Now do the other SD class
+ftrendLowSD <- terra::extract(ftrend,LowSDSamplePoints,raw=TRUE,ID=FALSE) %>% t() %>% as.data.frame()
+ftrendLowSD$DateTime <- as.POSIXct(names(ftrend))
+ftrendLowSD$SD <- "Low"
+#Convert to long format
+PlotDataLow <- tidyr::pivot_longer(ftrendLowSD, cols=`V1`:`V10`,names_to="SampleID",values_to="ftrend")
+
+#Sample the slope at the same locations and add to the plot data
+LowSlopeSamples <- terra::extract(SlopeData,LowSDSamplePoints,raw=TRUE,ID=TRUE) %>% as.data.frame() %>% dplyr::mutate(ID = paste0("V",ID))
+PlotDataLow$Slope <- LowSlopeSamples$slope[match(PlotDataLow$SampleID,LowSlopeSamples$ID)]
+
+#Combine the high and Low SD plot data
+
+PlotData <- rbind(PlotDataHigh,PlotDataLow)
+PlotData <- PlotData[order(PlotData$DateTime),]
+
+SDClassifiedPlot <- plot_ly(PlotData, x = ~DateTime, type = 'scatter', mode = 'markers',size = 100,opacity=1,
+  y=~ftrend, symbol = ~SD, symbols = c('triangle-down','circle'),showlegend = T,color = ~Slope,
+  text = ~format(DateTime,"%H:%M %d %b"),
+  hovertemplate = paste('%{y:.2f} <sup>o</sup>C')) %>%
+
+  layout(yaxis=list(title = "<i>ftrend</i><br>Pixel temperature difference<br>from temporal average <sup>o</sup>C", hoverformat = '.2f oC'),
+         xaxis=list(range = c(as.numeric(min(PlotData$DateTime))*1000,
+              as.numeric(max(PlotData$DateTime))*1000),
+              title="",dtick="10800000",tickformat="%H:%M<br>%d %b",hoverformat="%H:%M %d %b"),
+         hovermode="x")
+
+SDClassifiedPlot
 
 ```
 
+repeat for fpattern
+```{r}
+SlopeData <- terra::rast(SlopeFile)
+
+fpatternHighSDSamples <- terra::extract(fpattern,HighSDSamplePoints,raw=TRUE,ID=FALSE) %>% t() %>% as.data.frame()
+fpatternHighSDSamples$SD <- "High"
+fpatternHighSDSamples$DateTime <- as.POSIXct(names(fpattern))
+#Convert to long format
+PlotDataHigh <- tidyr::pivot_longer(fpatternHighSDSamples, cols=`V1`:`V10`,names_to="SampleID",values_to="fpattern")
+
+#Sample the slope at the same locations and add to the plot data
+HighSlopeSamples <- terra::extract(SlopeData,HighSDSamplePoints,raw=TRUE,ID=TRUE) %>% as.data.frame() %>% dplyr::mutate(ID = paste0("V",ID))
+PlotDataHigh$Slope <- HighSlopeSamples$slope[match(PlotDataHigh$SampleID,HighSlopeSamples$ID)]
+
+#Now do the other SD class
+fpatternLowSD <- terra::extract(fpattern,LowSDSamplePoints,raw=TRUE,ID=FALSE) %>% t() %>% as.data.frame()
+fpatternLowSD$DateTime <- as.POSIXct(names(fpattern))
+fpatternLowSD$SD <- "Low"
+#Convert to long format
+PlotDataLow <- tidyr::pivot_longer(fpatternLowSD, cols=`V1`:`V10`,names_to="SampleID",values_to="fpattern")
+
+#Sample the slope at the same locations and add to the plot data
+LowSlopeSamples <- terra::extract(SlopeData,LowSDSamplePoints,raw=TRUE,ID=TRUE) %>% as.data.frame() %>% dplyr::mutate(ID = paste0("V",ID))
+PlotDataLow$Slope <- LowSlopeSamples$slope[match(PlotDataLow$SampleID,LowSlopeSamples$ID)]
+
+#Combine the high and Low SD plot data
+
+PlotData <- rbind(PlotDataHigh,PlotDataLow)
+PlotData <- PlotData[order(PlotData$DateTime),]
+
+SDClassifiedPlot <- plot_ly(PlotData, x = ~DateTime, type = 'scatter', mode = 'markers',size = 100,opacity=1,
+  y=~fpattern, symbol = ~SD, symbols = c('triangle-down','circle'),showlegend = T,color = ~Slope,
+  text = ~format(DateTime,"%H:%M %d %b"),
+  hovertemplate = paste('%{y:.2f} <sup>o</sup>C')) %>%
+
+  layout(yaxis=list(title = "<i>fpattern</i><br>Pixel temperature difference<br>from image average <sup>o</sup>C", hoverformat = '.2f oC'),
+         xaxis=list(range = c(as.numeric(min(PlotData$DateTime))*1000,
+              as.numeric(max(PlotData$DateTime))*1000),
+              title="",dtick="10800000",tickformat="%H:%M<br>%d %b",hoverformat="%H:%M %d %b"),
+         hovermode="x")
+
+SDClassifiedPlot
+```
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
 
