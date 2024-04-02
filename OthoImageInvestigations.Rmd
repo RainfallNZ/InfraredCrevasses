@@ -26,7 +26,7 @@ It should be possible to run the python libraries through R.
 Load the required libraries
 ```{r}
   #Check for and load required libraries and packages
-  list.of.packages <- c("R.matlab","lubridate","tidyr","plotly","rasterly","stringr","xts","abind","bioRad","terra")
+  list.of.packages <- c("R.matlab","lubridate","tidyr","plotly","rasterly","stringr","xts","abind","bioRad","terra","ggplot2","cowplot","ggtext")
   new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
   if(length(new.packages)) install.packages(new.packages,repos='https://cloud.r-project.org')
   
@@ -35,12 +35,19 @@ Load the required libraries
   
   ProjectDirectory  <- "D:\\Projects\\UC\\Heather Purdie\\Purdie-TasmanSaddle-Crevasses"
   UCMirrorDirectory <- file.path(ProjectDirectory,"CopiesFromUC")
-  DataDirectory     <- file.path(ProjectDirectory,"Crevasse Teperature Variability\\Data")
+  DataDirectory     <- file.path(ProjectDirectory,"Crevasse Temperature Variability\\Data")
+  outputDirectory   <- file.path(ProjectDirectory,"Reports","TablesAndFigures")
 
   OrthoFileDirectory<- file.path(DataDirectory,"GIS","OrthoImages")
   DEMFile           <- file.path(DataDirectory,"GIS","DEM_AOI_and_TG_WGS84_50cm.tif")
   ViewshedFile      <- file.path(DataDirectory,"GIS","Viewshed.tif")
-  SlopeFile         <- file.path(DataDirectory,"GIS","Slope.tif")
+
+  SurfaceCharacteristics <- c("Slope","Aspect","AzimuthAngle","AltitudeAngle","DistanceFromCamera")
+  SurfaceCharacterFiles <- lapply(SurfaceCharacteristics, function(x) {
+    file.path(DataDirectory,"GIS",paste0(x,".tif"))
+  })
+  names(SurfaceCharacterFiles) <- SurfaceCharacteristics
+  
   DEMHiResFile      <- file.path(UCMirrorDirectory,"TG_2020_GIS","TG_2020_demNZTM.tif")
   WeatherStaionSitesFile <- file.path(DataDirectory,"GIS","GEO-XH.shp")
   PointsOfInterestFile <- file.path(DataDirectory,"GIS","POI_IR.shp")
@@ -315,13 +322,13 @@ highSDPixels[highSDPixels < 1] <- NA
 HighSDPixelsSampleCells <- terra::spatSample(highSDPixels, size = SampleNo, method="random", replace=FALSE,cells=TRUE,na.rm=TRUE)
 
 #Initialise the sample raster
-HighSDPixelSamples <- highSDPixels
+HighSDPixelSamples <- init(highSDPixels,fun=NA)
 
-#Set all the non-sampled cells to NA
-HighSDPixelSamples[!cells(HighSDPixelSamples) %in% HighSDPixelsSampleCells$cell] <- NA
+#Set all the sampled cells to 1
+HighSDPixelSamples[HighSDPixelsSampleCells$cell] <- 1
 
-#For some reason I end up with 1 extra sample. See Issue#4. Explictly limited to the SampleNo
-HighSDSamplePoints <- terra::as.points(HighSDPixelSamples)[1:SampleNo]
+##For some reason I end up with 1 extra sample. See Issue#4. Explictly limited to the SampleNo
+HighSDSamplePoints <- terra::as.points(HighSDPixelSamples)#[1:SampleNo]
 {
 terra::plot(highSDPixels, col="black")
 terra::points(HighSDSamplePoints, col="green",pch=1,cex=1.1)
@@ -335,11 +342,11 @@ LowSDSamplePoints <- terra::as.points(LowSDPixels)
 #sample the cells
 LowSDPixelsSampleCells <- terra::spatSample(LowSDPixels, size = SampleNo, method="random", replace=FALSE,cells=TRUE,na.rm=TRUE)
 
-#Initialise the sample raster
-LowSDPixelSamples <- LowSDPixels
+#Initialise a raster with all NA's
+LowSDPixelSamples <- terra::init(LowSDPixels,fun=NA)
 
-#Set all the non-sampled cells to NA
-LowSDPixelSamples[!cells(LowSDPixelSamples) %in% LowSDPixelsSampleCells$cell] <- NA
+#Set all the sampled cells to 1
+LowSDPixelSamples[LowSDPixelsSampleCells$cell] <- 1
 LowSDSamplePoints <- terra::as.points(LowSDPixelSamples)
 
 {
@@ -350,7 +357,7 @@ terra::points(LowSDSamplePoints, col="green",pch=1,cex=1.1)
 ```
 Dot plot over time of the fpattern high SD values. Overplot dot plot over time the low SD values
 ```{r}
-SlopeData <- terra::rast(SlopeFile)
+SlopeData <- terra::rast(SurfaceCharacterFiles[[1]])
 
 ftrendHighSDSamples <- terra::extract(ftrend,HighSDSamplePoints,raw=TRUE,ID=FALSE) %>% t() %>% as.data.frame()
 ftrendHighSDSamples$SD <- "High"
@@ -395,7 +402,7 @@ SDClassifiedPlot
 
 repeat for fpattern
 ```{r}
-SlopeData <- terra::rast(SlopeFile)
+SlopeData <- terra::rast(SurfaceCharacterFiles[[1]])
 
 fpatternHighSDSamples <- terra::extract(fpattern,HighSDSamplePoints,raw=TRUE,ID=FALSE) %>% t() %>% as.data.frame()
 fpatternHighSDSamples$SD <- "High"
@@ -435,6 +442,87 @@ SDClassifiedPlot <- plot_ly(PlotData, x = ~DateTime, type = 'scatter', mode = 'm
          hovermode="x")
 
 SDClassifiedPlot
+```
+
+Now do a faceted plot or lattice plot or trellis plot or grid plot with ach sub-plot a different surface characteristic
+```{r}
+fpatternHighSDSamples <- terra::extract(fpattern,HighSDSamplePoints,raw=TRUE,ID=FALSE) %>% t() %>% as.data.frame()
+fpatternHighSDSamples$SD <- "High"
+fpatternHighSDSamples$DateTime <- as.POSIXct(names(fpattern))
+#Convert to long format
+PlotDataHigh <- tidyr::pivot_longer(fpatternHighSDSamples, cols=`V1`:`V10`,names_to="SampleID",values_to="fpattern")
+
+#Sample the surface characteristics at the same locations and add to the plot data
+for(SurfaceCharacter in SurfaceCharacteristics){
+  CharacterData <- terra::rast(SurfaceCharacterFiles[[SurfaceCharacter]])
+  Samples <- terra::extract(CharacterData,HighSDSamplePoints,raw=TRUE,ID=TRUE) %>% as.data.frame() %>% dplyr::mutate(ID = paste0("V",ID))
+  PlotDataHigh[SurfaceCharacter] <- Samples[,2][match(PlotDataHigh$SampleID,Samples$ID)]
+}
+
+#Now do the other SD class
+fpatternLowSD <- terra::extract(fpattern,LowSDSamplePoints,raw=TRUE,ID=FALSE) %>% t() %>% as.data.frame()
+fpatternLowSD$DateTime <- as.POSIXct(names(fpattern))
+fpatternLowSD$SD <- "Low"
+#Convert to long format
+PlotDataLow <- tidyr::pivot_longer(fpatternLowSD, cols=`V1`:`V10`,names_to="SampleID",values_to="fpattern")
+
+#Sample the surface characteristics at the same locations and add to the plot data
+for(SurfaceCharacter in SurfaceCharacteristics){
+  CharacterData <- terra::rast(SurfaceCharacterFiles[[SurfaceCharacter]])
+  Samples <- terra::extract(CharacterData,LowSDSamplePoints,raw=TRUE,ID=TRUE) %>% as.data.frame() %>% dplyr::mutate(ID = paste0("V",ID))
+  PlotDataLow[SurfaceCharacter] <- Samples[,2][match(PlotDataLow$SampleID,Samples$ID)]
+}
+
+#Combine the high and Low SD plot data
+
+PlotData <- rbind(PlotDataHigh,PlotDataLow)
+PlotData <- PlotData[order(PlotData$DateTime),]
+PlotData <- PlotData[seq(1, nrow(PlotData),by=3),]
+```
+
+The plotly plots can't be combined to form a publication-ready plot because plotly::subplot()
+uses a shared legend, which doesn't work for different fill scales.
+
+So I've switched to ggplot2 for plotting and use cowplot::plt_grid() for gridding them.
+I have specified the font to be ArialMT. I couldn't load and use Optima font because I am an idiot, but the Journal of Glaciology
+second choice is Arial.
+They specify minimum size of 9 point.
+Double column width is 178 mm (7 inches)
+```{r, fig.width = 7,fig.height=8}
+SDPlots <- lapply(SurfaceCharacteristics, function(SurfaceCharacteristic){
+  SinglePlot <- PlotData %>% 
+  ggplot(aes(x = DateTime, y = fpattern, fill = .data[[SurfaceCharacteristic]])) +
+  geom_point(aes(shape = SD),size=3,stroke=NA,alpha=4/5) +
+  scale_shape_manual(values = c(25,21)) +
+  guides(shape='none')+
+  theme_bw() + 
+  #theme(text=element_text(family="Arial",size=9),
+          theme(text=element_text(size=9),
+        axis.text = element_text(size=9),
+        legend.text = element_text(size=9),
+    axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        legend.justification = c(0,1)) + 
+  scale_fill_viridis_c(direction=-1)
+  
+  #For all except the last characteristic, remove the x-axis tick text
+  if(!identical(SurfaceCharacteristic, tail(SurfaceCharacteristics,1))){
+    SinglePlot <- SinglePlot +
+      theme(axis.text.x = element_blank())
+  }
+  return(SinglePlot)
+})
+
+
+#Create a gridded plot, but it is missing a common y axis label
+plot <- do.call("plot_grid",c(SDPlots,list(ncol=1,align = "v")))
+
+#Create the common y-axis label
+yAxisLabelGridObject <- gridtext::richtext_grob("<i>fpattern</i><br>Pixel temperature difference from image average (<sup>o</sup>C)",rot=90)
+
+FullPlot <- gridExtra::grid.arrange(gridExtra::arrangeGrob(plot, left = yAxisLabelGridObject))
+FullPlot
+ggsave(file.path(outputDirectory,"fpatternPlot.pdf"),FullPlot,width = 178, height = 205,units="mm", dpi=300, device = "pdf")
 ```
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
