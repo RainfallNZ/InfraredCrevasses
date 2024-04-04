@@ -503,7 +503,10 @@ SDPlots <- lapply(SurfaceCharacteristics, function(SurfaceCharacteristic){
     axis.title.y = element_blank(),
         axis.title.x = element_blank(),
         legend.justification = c(0,1)) + 
-  scale_fill_viridis_c(direction=-1)
+        scale_fill_gradientn(colours = c("#5153a6","#c7a53f","#cc7833","#e8481c","#ff0004"),
+                         values=c(0,0.25,0.5,0.75,1),
+                         na.value=NA)
+  #scale_fill_viridis_c(direction=-1)
   
   #For all except the last characteristic, remove the x-axis tick text
   if(!identical(SurfaceCharacteristic, tail(SurfaceCharacteristics,1))){
@@ -522,6 +525,7 @@ yAxisLabelGridObject <- gridtext::richtext_grob("<i>fpattern</i><br>Pixel temper
 
 FullPlot <- gridExtra::grid.arrange(gridExtra::arrangeGrob(plot, left = yAxisLabelGridObject))
 FullPlot
+#Save as pdf
 ggsave(file.path(outputDirectory,"fpatternPlot.pdf"),FullPlot,width = 178, height = 205,units="mm", dpi=300, device = "pdf")
 ```
 

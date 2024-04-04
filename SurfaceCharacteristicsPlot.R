@@ -91,5 +91,6 @@ SurfaceCharacteristicPlots <- lapply(SurfaceCharacteristics, function(SurfaceCha
 #Create a gridded plot - takes 30 seconds
 FullPlot <- do.call("plot_grid",c(SurfaceCharacteristicPlots,list(ncol=2,align = "v")))
 
-#Save as pdf
+#Save as pdf for Overleaf, and tif for Word
 ggsave(file.path(outputDirectory,"SurfaceCharacteristicsPlot.pdf"),FullPlot,width = 178, height = 205,units="mm", dpi=300, device = "pdf")
+ggsave(file.path(outputDirectory,"SurfaceCharacteristicsPlot.tif"),FullPlot,width = 178, height = 205,units="mm", dpi=300, device = "tiff")
