@@ -3,7 +3,7 @@
 #Guidelines are here:https://www.cambridge.org/core/services/aop-file-manager/file/5b431f1d2c1c7a5063243b24/jglac-instructionsforauthors-11Apr2019.pdf
 #Journal of Glaciology have an Overleaf template to assist with preparing a publication.
 # https://www.overleaf.com/project/6601af499e691ff65feea2ec
-#This plot is intended to be single column (86 mm) wide and about 10 mm high.
+#This plot is intended to be single column (86 mm) wide and about 100 mm high.
 
 #The plot is prepared using the ggplot2 plotting library and related packages
 

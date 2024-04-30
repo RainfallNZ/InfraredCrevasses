@@ -281,8 +281,8 @@ terra::plot(ftrend)
 terra::plot(mpattern)
 plot(mtrend,type="l")
 ```
-Now calculate the temporal standard deviation of each pixel in the ftrend product
-then get the probability distribution of the ftrend standard deviation
+Now calculate the temporal standard deviation of each pixel in the fpattern product
+then get the probability distribution of the fpattern standard deviation
 Hopefully it is bimodal
 
 ```{r}
