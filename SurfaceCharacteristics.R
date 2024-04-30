@@ -9,6 +9,7 @@
 #AltitudeAngle, angle below the horizontal of a surface point with respect the camera, in degrees
 #Azimuthangle, angle, with respect North between camera and surface point, in degrees
 #Distance from camera
+#These are done in the resoution of the orthorectified image
 
 #******
 #Yet to do
@@ -19,6 +20,7 @@
 #with respect a distant point. However I haven't been able to figure it out.
 #I think I need to work in spherical coordinates to sort it out.
 #The skyview of each pixel
+#The Ozzie Dust distribution
 #***********
 
 #These surface characteristics are to be used to test how they relate to the infrared camera temperatures
@@ -34,27 +36,39 @@ if(length(librariesToLoad)) sapply(librariesToLoad, library, character.only = TR
 #Set directories and filenames
 ProjectDirectory  <- "D:\\Projects\\UC\\Heather Purdie\\Purdie-TasmanSaddle-Crevasses"
 UCMirrorDirectory <- file.path(ProjectDirectory,"CopiesFromUC")
-DataDirectory     <- file.path(ProjectDirectory,"Crevasse Teperature Variability\\Data")
+DataDirectory     <- file.path(ProjectDirectory,"Crevasse Temperature Variability\\Data")
 
-DEMFile           <- file.path(DataDirectory,"GIS","TG_Alligned.tif")
+DEMFile           <- file.path(UCMirrorDirectory,"TG_2020_GIS","TG_2020_demNZTM.tif")
+OrthoImageFile    <- file.path(DataDirectory,"GIS","OrthoImages","OrthoImage_20_20200224_22_30_clipped.tif")
 
 #Specify the x,y,z of the point of interest
 #POI_xyz <- c(1385274.926,5178740.551,2363.246) #From "Geo-XH_TS_Corrected.xlsx"
 POI_xyz <- c(1385274.926,5178740.551,2377.424) #From "Geo-XH_TS_Corrected.xlsx but elevation from elipsoid
 CameraPoint <- st_point(POI_xyz[1:2])
 
-#Load the DEM and calculate the slope and aspect
+#Load the DEM
 DEM <- terra::rast(DEMFile)
+
+#Load the example OrthoImage
+ExampleOrthoImage <- terra::rast(OrthoImageFile) %>% terra::project(y="epsg:2193")
+BigExample <- terra::extend(ExampleOrthoImage,DEM)
+
+#Resample the DEM to match the example ortho image resolution
+DEM <- terra::project(DEM,y=BigExample)
+
+#calculate the slope and aspect
 DEM[DEM < 0] <- NA 
 DEM <- terra::trim(DEM)
 
 Slope <- terra::terrain(DEM, v="slope")
 Aspect <- terra::terrain(DEM, v="aspect")
+Slope_radians <- terra::terrain(DEM, v="slope",unit="radians")
+Aspect_radians <- terra::terrain(DEM, v="aspect",unit="radians")
 
 #Initialise some rasters based on the DEM, but to be populated with new values later on
 EastingsRaster <- NorthingsRaster <- DEM
 
-#These next calculations are cared out on each cell of the raster. For efficiency the raster has been converted to a vector.
+#These next calculations are caried out on each cell of the raster. For efficiency the raster has been converted to a vector.
 #When the calculations are complete, they are used to update the values of the related raster.
 #Get all the values of the DEM
 DEMValues <- terra::values(DEM)
@@ -84,10 +98,14 @@ AspectDifference <- abs(Aspect - ((AzimuthAngle + 180)%% 360))
 DistanceFromCameraValues <- ((DEMCoordinates[,'x']-POI_xyz[1])^2 + (DEMCoordinates[,'y']-POI_xyz[2])^2 + (DEMValues - POI_xyz[3])^2)^0.5
 values(DistanceFromCamera) <- DistanceFromCameraValues
 
-#Get the viewshed
-Viewshed <- terra::viewshed(DEM,loc = POI_xyz[1:2],observer = 1.5)
+#Get the camera viewshed
+Viewshed <- terra::viewshed(DEM,loc = POI_xyz[1:2],observer = 1.5) 
+
+#Get the sky view from each pixel
+#Yet to be done....
 
 #Save them all to a file
+writeRaster(DEM,file.path(DataDirectory,"GIS","Elevation.tif"),overwrite=TRUE)
 writeRaster(Aspect,file.path(DataDirectory,"GIS","Aspect.tif"),overwrite=TRUE)
 writeRaster(Slope,file.path(DataDirectory,"GIS","Slope.tif"),overwrite=TRUE)
 writeRaster(AzimuthAngle,file.path(DataDirectory,"GIS","AzimuthAngle.tif"),overwrite=TRUE)

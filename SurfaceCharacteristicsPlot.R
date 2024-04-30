@@ -26,7 +26,7 @@ WeatherStaionSitesFile <- file.path(DataDirectory,"GIS","GEO-XH.shp")
 CameraLocationFile <- file.path(DataDirectory,"GIS","IRCamera.shp")
 AreaOfInterestFile<- file.path(DataDirectory,"GIS","IRCameraAOI.shp")
 
-SurfaceCharacteristics <- c("DEM_AOI_and_TG_WGS84_50cm","Slope","Aspect","AzimuthAngle","AltitudeAngle","DistanceFromCamera")
+SurfaceCharacteristics <- c("Elevation","Slope","Aspect","AzimuthAngle","AltitudeAngle","DistanceFromCamera")
 SurfaceCharacterFiles <- lapply(SurfaceCharacteristics, function(x) {
   file.path(DataDirectory,"GIS",paste0(x,".tif"))
 })
