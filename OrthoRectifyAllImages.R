@@ -20,9 +20,10 @@ if (Sys.info()["sysname"]=="Linux") {
 ProjectDirectory  <- file.path(ProjectsDirectory,"UC","Heather Purdie","Purdie-TasmanSaddle-Crevasses")
 
 UCMirrorDirectory <- file.path(ProjectDirectory,"CopiesFromUC")
-DataDirectory     <- file.path(ProjectDirectory,"Crevasse Teperature Variability","Data")
+DataDirectory     <- file.path(ProjectDirectory,"Crevasse Temperature Variability","Data")
 MatlabFile        <- file.path(UCMirrorDirectory,"IR camera stuff","data analysis from Raj for 2020","Tier_4_timeseries.mat")
 DEMFile           <- file.path(DataDirectory,"GIS","DEM_AOI_and_TG_NZTM_50cm.tif")
+DEMFile          <- file.path("/home","drizzle","Downloads","TG_2020_demWGS84.tif")
 CameraFile        <- file.path(DataDirectory,"img.tsai")
 ImageMaskFile     <- file.path(DataDirectory,"GIS","IRCameraAOI.shp")
 
@@ -32,15 +33,48 @@ Matlab2RdateTime <- function(val) as.POSIXct((val-1)*86400, origin = "0000-01-01
 #Load image data
 ImageData <- readMat(MatlabFile)
 
+#Throw out all the missing data
+MissingDataIndices <- which(is.na(ImageData$mean.timeseries))
+ImageData$timeseries<- ImageData$timeseries[,,-MissingDataIndices]
+ImageData$mean.timeseries <- ImageData$mean.timeseries[-MissingDataIndices]
+ImageData$time <- ImageData$time[-MissingDataIndices]
+
 #Get image date times
 #Convert, but force TimeZone name to be NZST
 RDateTimes <- Matlab2RdateTime(ImageData$time) %>% force_tz(tzone = "NZ")
 
-#Process each image in turn
+#Load the image mask file
 ImageMask <- terra::vect(ImageMaskFile)
 
+# # Open the 20th image
+# TestImage <- terra::rast(ImageData$timeseries[,,20])
+# #Create a new image where the cell values are the same as the cell numbers.
+# #When this is projected, it can be used to back-project surface characteristic data
+# TestImageCellNumbers <- terra::cells(TestImage)
+# TestValuesImage <- TestImage
+# TestValuesImage[] <- TestImageCellNumbers
+# #Save it for later use
+# ValuesImageFileName <- file.path("/home","drizzle","Downloads","ValuesImage.tif")
+# terra::writeRaster(TestValuesImage,ValuesImageFileName)
+# #Specify the proected filename
+# ValuesOrthoImageFileName <- file.path("/home","drizzle","Downloads","ValuesOrthoImage.tif")
+# #Now project it
+# ASP_mappproject <- file.path(ASP_bin_directory,"mapproject")
+# ASP_Cmd <- paste0(ASP_mappproject," '",
+#                   DEMFile,"' '",
+#                   ValuesImageFileName,"' '",
+#                   CameraFile,"' '",
+#                   ValuesOrthoImageFileName,"'")
+# system(ASP_Cmd)
+# 
+# #Load the resulting orthorectified file and clip to the mask area
+# ClippedOrthoImageFileName <- sub("\\.tif$","_clipped.tif",ValuesOrthoImageFileName)
+# OrthoImageClipped <- terra::rast(ValuesOrthoImageFileName) %>% terra::project(crs(ImageMask)) %>% terra::mask(ImageMask) %>% terra::crop(ImageMask)
+# terra::writeRaster(OrthoImageClipped,ClippedOrthoImageFileName,overwrite=TRUE)
 
+#Process each image in turn
 lapply(seq(length(RDateTimes)), function(ImageNo){
+#lapply(seq(3), function(ImageNo){
   DateTimeOfImage <- RDateTimes[ImageNo]
   ImageOfInterest <- terra::rast(ImageData$timeseries[,,ImageNo])
   
