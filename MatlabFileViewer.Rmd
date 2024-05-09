@@ -17,7 +17,7 @@ Load libraries and set directory and file names
   
   ProjectDirectory <- "D:\\Projects\\UC\\Heather Purdie\\Purdie-TasmanSaddle-Crevasses"
   UCMirrorDirectory <- file.path(ProjectDirectory,"CopiesFromUC")
-  DataDirectory <- file.path(ProjectDirectory,"Crevasse Teperature Variability\\Data")
+  DataDirectory <- file.path(ProjectDirectory,"Crevasse Temperature Variability\\Data")
   MatlabFile <- file.path(UCMirrorDirectory,"IR camera stuff\\data analysis from Raj for 2020\\Tier_4_timeseries.mat")
 ```
 
@@ -70,15 +70,15 @@ terra::writeRaster(Image49,file.path(DataDirectory,"Image49.tif"),overwrite=TRUE
 Try viewing an image in rasterly
 rasterly accepts a list of xyz
 ```{r}
-
-ListofEachImagesXYZ <- lapply(seq(240,270, by = 1), function(ImageNo){
+ListofEachImagesXYZ <- lapply(seq(5,45, by = 1), function(ImageNo){
+#ListofEachImagesXYZ <- lapply(seq(240,270, by = 1), function(ImageNo){
   testdata <- reshape2::melt(data$timeseries[,,ImageNo])
   testdata$ImageNo <- ImageNo
   testdata
 })
 testdata3 <- do.call("rbind",ListofEachImagesXYZ)
 testdata3$value[testdata3$value > -4] <- NA
-testdata3$value[testdata3$value < -10] <- NA
+testdata3$value[testdata3$value < -20] <- NA
 
 plot_ly(testdata3, y = ~(-Var1), x = ~Var2,z = ~value, frame = ~ImageNo) %>%
   add_rasterly_heatmap()
