@@ -23,8 +23,8 @@ UCMirrorDirectory <- file.path(ProjectDirectory,"CopiesFromUC")
 DataDirectory     <- file.path(ProjectDirectory,"Crevasse Temperature Variability","Data")
 MatlabFile        <- file.path(UCMirrorDirectory,"IR camera stuff","data analysis from Raj for 2020","Tier_4_timeseries.mat")
 DEMFile           <- file.path(DataDirectory,"GIS","DEM_AOI_and_TG_NZTM_50cm.tif")
-DEMFile          <- file.path("/home","drizzle","Downloads","TG_2020_demWGS84.tif")
-CameraFile        <- file.path(DataDirectory,"img.tsai")
+DEMFile          <- file.path(UCMirrorDirectory,"TG_2020_GIS","TG_2020_demNZTM.tif")
+CameraFile        <- file.path(DataDirectory,"imgV11.tsai")
 ImageMaskFile     <- file.path(DataDirectory,"GIS","IRCameraAOI.shp")
 
 #An auxiliary function to convert Matlab date numbers to R date numbers
@@ -90,7 +90,8 @@ lapply(seq(length(RDateTimes)), function(ImageNo){
   #Create StereoPipeline command
   #ASP_Cmd <- paste0("cp '",TempRawImageFileName,"' '",OrthoImageFileName,"'") #for testing
   ASP_mappproject <- file.path(ASP_bin_directory,"mapproject")
-  ASP_Cmd <- paste0(ASP_mappproject," '",
+  ASP_Cmd <- paste0(ASP_mappproject,
+                    " --mpp 2 '",
                    DEMFile,"' '",
                    TempRawImageFileName,"' '",
                    CameraFile,"' '",
