@@ -60,14 +60,18 @@ IRPlot <- ggplot() +
         legend.margin = margin(0,0,0,0,'cm'),
         legend.box.margin=margin(-10,-10,-10,-10),
         plot.margin=margin(0,0,0,0,'cm')) +
-  scale_fill_gradientn(colours = c("#5153a6","#c7a53f","#cc7833","#e8481c","#ff0004"),
+
+  #scale_fill_gradientn(colours = c("#5153a6","#c7a53f","#cc7833","#e8481c","#ff0004"),
+  scale_fill_gradientn(colours = c("#30123b","#2fb2f4","#a7fc3a","#fc8524","#7e0502"),
                        values=c(0,0.25,0.5,0.75,1),
+                       #values=c(0,0.5,1),
                        labels = c("warmer","colder"),
-                       breaks = c(0,-20),
+                       breaks = c(-6,-18),
                        na.value=NA,
-                       limits=c(-20,0),
+                       limits=c(-18,-6),
                        name="Temperature",
-                       guide=guide_colorbar(title.position = "left",ticks = FALSE,title.vjust = 0.8))
+                       guide=guide_colorbar(title.position = "left",ticks = FALSE,title.vjust = 0.8),
+                       oob=scales::squish)
   
 
 IRPlot
