@@ -9,6 +9,14 @@
 
 #The plot is prepared using the ggplot2 plotting library and related packages
 
+#*****************************************
+#* WARNING WARNING
+#* Much of this script is duplicated in TemperatureCorrectedOrthoImages.R
+#* If anything is changed that affects the temperature correction of the images,
+#* then TemperatureCorrectedOrthoImages.R should also be edited.
+#* Some re-factoring should be done to resolve this
+#* ***************************************************
+
 #Check for and load required libraries and packages
 list.of.packages <- c("imager","magick","terra","tidyr","dplyr","ggplot2","ggtext",
                       "tidyterra","gridExtra","grid","gtable","rasterVis","stringr","xts")
@@ -130,7 +138,7 @@ AWSPlotBase <- PlotData %>%
         plot.background = element_rect(colour=NA, fill = "transparent"),
         plot.title = element_text(hjust = 0.1,vjust = -10,size=9))
 
-AWSPlotUpperTemperature <- AWSPlotBase +
+AWSTemperaturePlot <- AWSPlotBase +
   geom_line(aes(x = Index, y = CameraAtLowerAWS_Corrected,linetype = "Non-crevassed"),linewidth=1) +
   geom_line(aes(x = Index, y = IR_Crevasse_Corrected,linetype="Crevasse"),linewidth=1) +
   geom_line(aes(x = Index, y = Flat_Crevasse_Diff,linetype="Difference"),linewidth=1) +
@@ -142,7 +150,7 @@ AWSPlotUpperTemperature <- AWSPlotBase +
   scale_x_datetime(date_labels = '%H:%M\n%d %b') +
   theme(axis.text = element_text(size=9))
 
-AWSPlotUpperTemperature
+AWSTemperaturePlot
 
 
 #Now do the 3 am example spatial plot
@@ -187,7 +195,7 @@ IRPlot
 
 #Combine using gtables, which enables the spatial plot to fill up the space
 Plot1 <- ggplotGrob(IRPlot)
-Plot2 <- ggplotGrob(AWSPlotUpperTemperature)
+Plot2 <- ggplotGrob(AWSTemperaturePlot)
 
 #create a 1x2 empty gtable. Set the row and column sizes explicitly to get alignment correct
 #This was a real hack!!
