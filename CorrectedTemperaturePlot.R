@@ -154,7 +154,7 @@ AWSTemperaturePlot
 
 
 #Now do the 3 am example spatial plot
-IRExample  <- terra::rast(ExampleIROrthoImageFile)
+IRExample  <- terra::rast(ExampleIROrthoImageFile) %>% terra::mask(AreaOfInterest)
 TemperatureCorrectedIRExample <- IRExample - as.vector(InfraRedSamples$Diff[46])
 
 #Create a plot of the IR image

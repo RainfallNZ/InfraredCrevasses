@@ -23,7 +23,7 @@ Could this have been when the camera was checked in the morning?
 Arioli (2024) used "MatchTemplate" fuction from OpenCV Python library, and translated by the median displacement using warpAffine from OpenCV
 It should be possible to run the python libraries through R.
 
-Load the required libraries
+Load the required libraries, set the directory and file locations
 ```{r}
   #Check for and load required libraries and packages
   list.of.packages <- c("R.matlab","lubridate","tidyr","plotly","rasterly","stringr","xts","abind","bioRad","terra","ggplot2","cowplot","ggtext")

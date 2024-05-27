@@ -53,6 +53,7 @@ SurfaceCharacterData <- lapply(SurfaceCharacterFiles, function(SurfaceCharacterF
   #Load the data file, mask to the viewshed and clip to the area of interest
   SingleCharactersData <- terra::rast(SurfaceCharacterFile) %>%
     terra::resample(OrthoData[[1]],method="near") %>%
+    terra::mask(AreaOfInterest) %>%
     terra::mask(NonCrevasseMask)
   SingleCharactersData
 })

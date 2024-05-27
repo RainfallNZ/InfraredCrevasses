@@ -25,20 +25,22 @@ GISDirectory      <- file.path(DataDirectory,"GIS")
 outputDirectory   <- file.path(ProjectDirectory,"Reports","TablesAndFigures")
 RGBOrthoImageFile <- file.path(GISDirectory,"TG_20202_orthoNZTM_1mres.tif")
 ExampleIROrthoImageFile  <- file.path(GISDirectory,"OrthoImages","OrthoImage_49_20200225_03_20_clipped.tif")
+#ExampleIROrthoImageFile  <- file.path(GISDirectory,"OrthoImages","OrthoImage_119_20200225_15_00_clipped.tif")
 CrevasseClassFile <- file.path(GISDirectory,"CrevasseClassified.tif")
 ViewshedFile <- file.path(GISDirectory,"Viewshed.tif")
 
 #Load the images
-
-IRExample  <- terra::rast(ExampleIROrthoImageFile)
+AreaOfInterestFile <- file.path(GISDirectory,"IRCameraAOI.shp")
+AreaOfInterest <- terra::vect(AreaOfInterestFile)
+IRExample  <- terra::rast(ExampleIROrthoImageFile) %>% terra::mask(AreaOfInterest)
 RGBImage   <- terra::rast(RGBOrthoImageFile) %>% terra::project(IRExample) %>%  terra::resample(IRExample) %>% terra::mask(IRExample)
 CrevasseClassification <- terra::rast(CrevasseClassFile)%>% terra::project(IRExample, method="near") %>%  terra::resample(IRExample, method="near") %>% terra::mask(IRExample)
 Viewshed   <- terra::rast(ViewshedFile)%>% terra::project(IRExample,method="near") %>%  terra::resample(IRExample,method="near") %>% terra::mask(IRExample)
-AreaOfInterestFile <- file.path(GISDirectory,"IRCameraAOI.shp")
+
 WeatherStaionSitesFile <- file.path(GISDirectory,"GEO-XH.shp")
 CameraLocationFile <- file.path(GISDirectory,"IRCamera.shp")
 
-AreaOfInterest <- terra::vect(AreaOfInterestFile)
+
 Camera <- terra::vect(CameraLocationFile)
 WeatherStations <- terra::vect(WeatherStaionSitesFile) %>% tidyterra::filter(Comment %in% c("aws lower","aws top"))
 
