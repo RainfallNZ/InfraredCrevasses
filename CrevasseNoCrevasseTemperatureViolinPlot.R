@@ -18,6 +18,8 @@ if(length(new.packages)) install.packages(new.packages,repos='https://cloud.r-pr
 librariesToLoad <- list.of.packages[!(list.of.packages %in% (.packages()))]
 if(length(librariesToLoad)) sapply(librariesToLoad, library, character.only = TRUE)
 
+source("UsefulFunctions.R")
+
 #Set directory and file names
 ProjectDirectory  <- "D:\\Projects\\UC\\Heather Purdie\\Purdie-TasmanSaddle-Crevasses"
 UCDirectory       <- file.path(ProjectDirectory,"CopiesFromUC") 
@@ -45,23 +47,32 @@ Viewshed   <- terra::rast(ViewshedFile)%>%
   terra::resample(OrthoData[[1]],method="near") %>% 
   terra::mask(OrthoData[[1]])
 
-#load the crevasse classification data resampled to match the orhtho image resolution
-CrevasseMask <- terra::rast(CrevasseClassFile) %>% 
-  terra::resample(OrthoData[[1]], method="med") %>%
-  #terra::ifel(. < 1, NA, .) %>%
-  terra::mask(AreaOfInterest) %>%
-  terra::mask(Viewshed,maskvalues=c(NA,0))
+##load the crevasse classification data resampled to match the orhtho image resolution
+# CrevasseMask <- terra::rast(CrevasseClassFile) %>% 
+#   terra::resample(OrthoData[[1]], method="med") %>%
+#   #terra::ifel(. < 1, NA, .) %>%
+#   terra::mask(AreaOfInterest) %>%
+#   terra::mask(Viewshed,maskvalues=c(NA,0))
+# 
+# BufferedCrevasses <- terra::rast(CrevasseClassFile) %>% 
+#   terra::resample(OrthoData[[1]], method="max") %>%
+#   terra::ifel(. < 1, NA, .) %>%
+#   terra::buffer(3)%>%
+#   terra::mask(AreaOfInterest) 
+#  
+# #Combine the non-crevassed mask with the crevasse mask to give a three class raster
+# #0 = near crevasses, 1 = crevasses, 2 = not crevassed
+# CrevNoCrev <- terra::ifel(BufferedCrevasses == 1,yes=CrevasseMask,no= 2)
+# names(CrevNoCrev) <- "Class"
 
-BufferedCrevasses <- terra::rast(CrevasseClassFile) %>% 
-  terra::resample(OrthoData[[1]], method="max") %>%
-  terra::ifel(. < 1, NA, .) %>%
-  terra::buffer(3)%>%
-  terra::mask(AreaOfInterest) 
- 
-#Combine the non-crevassed mask with the crevasse mask to give a three class raster
-#0 = near crevasses, 1 = crevasses, 2 = not crevassed
-CrevNoCrev <- terra::ifel(BufferedCrevasses == 1,yes=CrevasseMask,no= 2)
-names(CrevNoCrev) <- "Class"
+#load the high resolution crevasse classification data
+HiResCrevasseMask <- terra::rast(CrevasseClassFile)
+
+#Convert to same resolution of the ortho images
+CrevNoCrev <- CrevasseClassifierLowRes(HiResCrevasseClassification = HiResCrevasseMask,
+                                         AreaOfInterest = AreaOfInterest,
+                                         Viewshed = Viewshed,
+                                         LowResRaster = OrthoData[[1]]) 
 
 #Get the temperatures within the crevassed areas from the 3 am orthoImage
 # ImageIndex <- 46 #3 am
