@@ -19,7 +19,7 @@ if(length(librariesToLoad)) sapply(librariesToLoad, library, character.only = TR
 ProjectDirectory  <- "D:\\Projects\\UC\\Heather Purdie\\Purdie-TasmanSaddle-Crevasses"
 DataDirectory     <- file.path(ProjectDirectory,"Crevasse Temperature Variability\\Data")
 outputDirectory   <- file.path(ProjectDirectory,"Reports","TablesAndFigures")
-CameraViewImageFile <- file.path(DataDirectory,"CameraAndViewBenSchmacher.jpg")
+CameraViewImageFile <- file.path(DataDirectory,"CameraAndViewBenSchmacher_Edited.jpg")
 ExampleIRImageFile  <- file.path(DataDirectory,"Image49.tif")
 
 #Load the two images, resizing the camera view photo to 86 mm wide at 300 dpi
@@ -55,7 +55,7 @@ IRPlot <- ggplot() +
         panel.border = element_blank(),
         legend.key.height = unit(0.5, 'cm'),
         legend.key.width = unit(0.5, 'cm'),
-        legend.title = element_markdown(),
+        legend.title = element_markdown(vjust = 0.8),
         legend.position = "bottom",
         legend.margin = margin(0,0,0,0,'cm'),
         legend.box.margin=margin(-10,-10,-10,-10),
@@ -70,7 +70,7 @@ IRPlot <- ggplot() +
                        na.value=NA,
                        limits=c(-18,-6),
                        name="Temperature",
-                       guide=guide_colorbar(title.position = "left",ticks = FALSE,title.vjust = 0.8),
+                       guide=guide_colorbar(title.position = "left",ticks = FALSE),
                        oob=scales::squish)
   
 
@@ -93,9 +93,9 @@ HalfPlot <- gtable_add_grob(tg,Plot2, t=2,b=3,l=2,z=Inf,clip="on")
 FullPlot <- gtable_add_grob(HalfPlot,Plot1, t=1,b=1,l=1,r=2,z=Inf,clip="on")
 
 # #To check the alignment use:
-# x11()
-# grid.newpage()
-# grid.draw(FullPlot)
+x11()
+grid.newpage()
+grid.draw(FullPlot)
 
 #Save as pdf for Overleaf, and tif for Word
 ggsave(file.path(outputDirectory,"CameraView.pdf"),FullPlot,width = 86,units="mm",height = 125, dpi=300, device = "pdf")
