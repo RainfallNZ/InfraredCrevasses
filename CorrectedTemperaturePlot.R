@@ -1,6 +1,6 @@
 #R Script to create publication-ready plot for paper of temperature time series for
-#the lower weather station's outgoing long-wave sensor, the camera-based-temperatures of a weather-station proximal
-#site, and a before and after correction of a representative crevasse site.
+#the lower weather station's outgoing long-wave sensor-based temperature, the camera-based-temperatures of a weather-station proximal
+#site, and a temperature corrected orthorectified infra red image.
 #Plot is to be formatted for Journal of Glaciology.
 #Guidelines are here:https://www.cambridge.org/core/services/aop-file-manager/file/5b431f1d2c1c7a5063243b24/jglac-instructionsforauthors-11Apr2019.pdf
 #Journal of Glaciology have an Overleaf template to assist with preparing a publication.
@@ -154,7 +154,12 @@ AWSTemperaturePlot
 
 
 #Now do the 3 am example spatial plot
-IRExample  <- terra::rast(ExampleIROrthoImageFile) %>% terra::mask(AreaOfInterest)
+
+IRExample  <- terra::rast(ExampleIROrthoImageFile)
+AreaOfInterest <- terra::project(AreaOfInterest,IRExample)
+Viewshed   <- terra::rast(ViewshedFile) %>% terra::project(IRExample,method="near") %>% terra::mask(AreaOfInterest)
+IRExample  <- terra::mask(IRExample,AreaOfInterest) %>% terra::mask(Viewshed,maskvalues=0)
+
 TemperatureCorrectedIRExample <- IRExample - as.vector(InfraRedSamples$Diff[46])
 
 #Create a plot of the IR image
@@ -175,11 +180,12 @@ IRPlot <- ggplot() +
         panel.border = element_blank(),
         legend.key.height = unit(0.5, 'cm'),
         legend.key.width = unit(0.5, 'cm'),
-        legend.title = element_markdown(),
+        legend.title = element_markdown(vjust = 0.8),
         legend.position = "bottom",
         legend.margin = margin(0,0,0,0,'cm'),
         legend.box.margin=margin(-10,-10,-10,-10),
         plot.margin=margin(0,0,1,0,'cm')) +
+  guides(fill = guide_colourbar(position="bottom"))+
   scale_fill_gradientn(colours = c("#30123b","#2fb2f4","#a7fc3a","#fc8524","#7e0502"),
                        values=c(0,0.25,0.5,0.75,1),
                        labels = c(-10, -8,-6,-4,-2),
@@ -187,7 +193,7 @@ IRPlot <- ggplot() +
                        na.value=NA,
                        limits=c(-10,-2),
                        name="Temperature (<sup>o</sup>C)",
-                       guide=guide_colorbar(title.position = "left",ticks = FALSE,title.vjust = 0.8),
+                       guide=guide_colorbar(title.position = "left",ticks = FALSE),
                        oob=scales::squish)+
   ggspatial::annotation_scale(style="ticks",text_cex=0.8, tick_height=0)
 
