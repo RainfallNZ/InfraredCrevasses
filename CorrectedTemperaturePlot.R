@@ -117,6 +117,7 @@ InfraRedSamples$Flat_Crevasse_Diff <-  InfraRedSamples$CameraAtLowerAWS_Correcte
 #Do a timeseries plot showing the flat temperature, crevasse temperature and difference temperature.
 
 PlotData <- InfraRedSamples %>% ggplot2::fortify()
+
 AWSPlotBase <- PlotData %>%
   ggplot() +
   theme_bw() + 
@@ -142,6 +143,7 @@ AWSTemperaturePlot <- AWSPlotBase +
   geom_line(aes(x = Index, y = CameraAtLowerAWS_Corrected,linetype = "Non-crevassed"),linewidth=1) +
   geom_line(aes(x = Index, y = IR_Crevasse_Corrected,linetype="Crevasse"),linewidth=1) +
   geom_line(aes(x = Index, y = Flat_Crevasse_Diff,linetype="Difference"),linewidth=1) +
+  labs(tag="b") +
   scale_linetype_manual("", 
                       breaks = c("Difference", "Crevasse", "Non-crevassed"),
                       values = c("Crevasse"=1, "Difference"=3, 
@@ -169,12 +171,14 @@ IRPlot <- ggplot() +
   geom_spatvector_text(data = LowerSamplePolygon,label = "Non-crevassed",vjust="top",hjust="centre",nudge_y = -10) +
   geom_spatvector(data = CrevasseSamplePolygon,fill=NA,linewidth=1) +
   geom_spatvector_text(data = CrevasseSamplePolygon,label = "Crevasse",vjust="bottom",hjust="centre",nudge_y = 10) +
+  labs(tag="a") +
   #  geom_spatvector(data = WeatherStations, shape = 17, size=4) +
   theme_classic() +
   theme(axis.line = element_blank(),
         axis.title = element_blank(),
         axis.text = element_blank(),
         axis.ticks = element_blank(),
+        plot.tag = element_text(vjust = -10), #manual position of tag to align with the second plot
         text=element_text(size=9),
         legend.text = element_text(size=9),
         panel.border = element_blank(),
@@ -205,7 +209,7 @@ Plot2 <- ggplotGrob(AWSTemperaturePlot)
 
 #create a 1x2 empty gtable. Set the row and column sizes explicitly to get alignment correct
 #This was a real hack!!
-tg <- gtable(widths = unit(c(86),c("mm")),heights = unit(c(100,60),c("mm")))
+tg <- gtable(widths = unit(c(86),c("mm")),heights = unit(c(110,60),c("mm")))
 #Add each grob to it's allocated place.
 HalfPlot <- gtable_add_grob(tg,Plot1, t=1,b=1,l=1,z=Inf,clip="off")
 

@@ -30,6 +30,7 @@ IRExample  <- terra::rast(ExampleIRImageFile)
 CameraViewDataFrame <- as.data.frame(CameraView,wide="c") %>% mutate(rgb.val=rgb(c.1,c.2,c.3))
 ViewPlot <- ggplot(CameraViewDataFrame,aes(x,y))+
   geom_raster(aes(fill=rgb.val))+
+  #labs(tag="a") +
   scale_fill_identity()+
   scale_y_reverse()+
   theme_classic() +
@@ -40,6 +41,7 @@ ViewPlot <- ggplot(CameraViewDataFrame,aes(x,y))+
         axis.title = element_blank(),
         text=element_text(size=9),
         legend.text = element_text(size=9),
+        plot.tag = element_text(vjust = -8,hjust=-20), #manual position of tag to align with the second plot
         panel.border = element_blank())
 
 #Create a plot of the IR image
@@ -80,24 +82,32 @@ IRPlot
 #match the equivalent top right of the camera view photo, so I want the right hand side
 #to be aligned. This is done using gtables and manually setting the size of columns to
 #make it look about right
-Plot1 <- ggplotGrob(ViewPlot)
-Plot2 <- ggplotGrob(IRPlot)
-
 
 #create a 2x3 empty gtable. Set the row and column sizes explicitly to get alignment correct
 #This was a real hack!!
+#And the positions on the PDF don't quite match those on RStudio viewer 
 tg <- gtable(widths = unit(c(12,74),c("mm")),heights = unit(c(59,56,2),c("mm")))
+
+#Create plot grobs
+TopPlot <- ggplotGrob(ViewPlot)
+BottomPlot <- ggplotGrob(IRPlot)
+
+#Create plot label grobs
+TopPlotLabel    <- textGrob(label="a",gp=gpar(fontsize=9,col="white"),vjust = -9, hjust = -1)
+BottomPlotLabel <- textGrob(label="b",gp=gpar(fontsize=9),vjust = -9, hjust = -1)
+
 #Add each grob to it's allocated place.
-HalfPlot <- gtable_add_grob(tg,Plot2, t=2,b=3,l=2,z=Inf,clip="on")
+CombinedPlot <- gtable_add_grob(tg,TopPlot, t=1,l=1,r=2,z=Inf,clip="on") %>%
+  gtable_add_grob(TopPlotLabel,t=1,l=1,z=Inf,clip="off") %>%
+  gtable_add_grob(BottomPlot, t=2,b=3,l=2,z=Inf,clip="on") %>%
+  gtable_add_grob(BottomPlotLabel, t=2,l=1,z=Inf,clip="off")
 
-FullPlot <- gtable_add_grob(HalfPlot,Plot1, t=1,b=1,l=1,r=2,z=Inf,clip="on")
-
-# #To check the alignment use:
-x11()
+#For a preliminary check of alignment use:
+#But note the PDF alignment is a bit different!
 grid.newpage()
-grid.draw(FullPlot)
+grid.draw(CombinedPlot)
 
 #Save as pdf for Overleaf, and tif for Word
-ggsave(file.path(outputDirectory,"CameraView.pdf"),FullPlot,width = 86,units="mm",height = 125, dpi=300, device = "pdf")
+ggsave(file.path(outputDirectory,"CameraView.pdf"),CombinedPlot,width = 86,units="mm",height = 125, dpi=300, device = "pdf")
 
-ggsave(file.path(outputDirectory,"CameraView.tif"),FullPlot,width = 86, height = 125,units="mm", dpi=300, device = "tiff")
+ggsave(file.path(outputDirectory,"CameraView.tif"),CombinedPlot,width = 86, height = 125,units="mm", dpi=300, device = "tiff")

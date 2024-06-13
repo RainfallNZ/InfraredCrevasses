@@ -234,7 +234,8 @@ DustClassPlot
 
 aligned <- cowplot::align_plots(IRPlot,OrthoImagePlot,CrevasseClassHiResPlot,CrevasseClassLoResPlot,ViewshedPlot,DustClassPlot, align = "vh", axis="blrt")
 
-FullPlot = cowplot::plot_grid(aligned[[1]], aligned[[2]], aligned[[3]], aligned[[6]],aligned[[4]],aligned[[5]],ncol=2, nrow=3)
+FullPlot = cowplot::plot_grid(aligned[[1]], aligned[[2]], aligned[[3]], aligned[[6]],aligned[[4]],aligned[[5]],ncol=2, nrow=3,
+                              labels =c("a","b","c","d","e","f"), label_fontface="plain",label_size = 9)
 
 #Save as pdf for Overleaf, and tif for Word
 ggsave(file.path(outputDirectory,"OrthoExample.pdf"),FullPlot,width = 178,units="mm",height = 205, dpi=300, device = "pdf")

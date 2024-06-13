@@ -93,7 +93,7 @@ DefaultAxis <-  ggplot() +
         panel.border = element_blank(),
         legend.key.height = unit(0.5, 'cm'),
         legend.key.width = unit(0.5, 'cm'),
-        legend.title = element_markdown(),
+        legend.title = element_markdown(vjust = 0.8),
         legend.position = "bottom",
         legend.margin = margin(0,0,0,0,'cm'),
         legend.box.margin=margin(-10,-10,-10,-10),
@@ -105,7 +105,7 @@ DefaultAxis <-  ggplot() +
                        na.value=NA,
                        limits=c(-12,8),
                        name="Temperature (<sup>o</sup>C)",
-                       guide=guide_colorbar(title.position = "left",ticks = FALSE,title.vjust = 0.8),
+                       guide=guide_colorbar(title.position = "left",ticks = FALSE),
                        oob=scales::squish)
 
 SurfaceCharacterTemperaturePlots <- lapply(seq_along(SurfaceCharacteristics), function(SurfaceCharacteristicIndex){
@@ -137,13 +137,16 @@ legend_b <- get_legend(SurfaceCharacterTemperaturePlots[[1]])
 NoLegendPlots <- lapply(SurfaceCharacterTemperaturePlots, function(x) {
   x + theme(legend.position = "none")
 })
-FullPlot <- do.call("plot_grid",c(NoLegendPlots,list(ncol=2,align = "hv")))
+FullPlot <- do.call("plot_grid",c(NoLegendPlots,list(ncol=2,
+                                                     align = "hv",
+                                                     labels =c("a","b","c","d","e","f"), 
+                                                     label_fontface="plain",
+                                                     label_size = 9)))
 
 FullPlotWithLegend <- plot_grid(FullPlot, legend_b,ncol=1,rel_heights = c(1,0.2))
 FullPlotWithLegend
 
-#Need to add dust class
-  
+
 #Save as pdf for Overleaf, and tif for Word
 ggsave(file.path(outputDirectory,"SurfaceCharacteristicTemperaturePlot.pdf"),FullPlotWithLegend,width = 178,units="mm",height = 205, dpi=300, device = "pdf")
 
