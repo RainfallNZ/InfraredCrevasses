@@ -8,7 +8,7 @@
 #The plot is prepared using the ggplot2 plotting library and related packages
 
 #Check for and load required libraries and packages
-list.of.packages <- c("lubridate","tidyr","terra","ggplot2","cowplot","ggtext","tidyterra")
+list.of.packages <- c("lubridate","tidyr","terra","ggplot2","cowplot","ggtext","tidyterra","ggspatial")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages,repos='https://cloud.r-project.org')
 
@@ -79,8 +79,8 @@ SurfaceCharacteristicPlots <- lapply(SurfaceCharacteristics, function(SurfaceCha
           legend.background = element_rect(fill="transparent"),
           legend.justification = c(0,0.5),
           plot.margin=margin(0,0,0,2,'cm')) +
-    scale_fill_gradientn(colours = c("#5153a6","#c7a53f","#cc7833","#e8481c","#ff0004"),
-                         values=c(0,0.25,0.5,0.75,1),
+    scale_fill_terrain_c(#colours = c("#5153a6","#c7a53f","#cc7833","#e8481c","#ff0004"),
+                         #values=c(0,0.25,0.5,0.75,1),
                          na.value=NA,
                          limits=SurfaceCharacterPlotLimits[[SurfaceCharacteristic]],
                          name=SurfaceCharacterLegendTitles[SurfaceCharacteristic]) +
