@@ -9,7 +9,7 @@
 #The plot is prepared using the ggplot2 plotting library and related packages
 
 #Check for and load required libraries and packages
-list.of.packages <- c("lubridate","tidyr","ggplot2","cowplot","ggtext","stringr","plotly","xts","egg")
+list.of.packages <- c("lubridate","tidyr","ggplot2","cowplot","ggtext","stringr","plotly","xts","egg","tools")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages,repos='https://cloud.r-project.org')
 
@@ -61,9 +61,9 @@ LoggerData <- lapply(LoggerFiles, function(LoggerFile) {
   AWSDataxts <- AWSData %>% select(-TIMESTAMP) %>% xts(order.by = LoggerDateTimes) %>% window(start = StartDateTime, end = EndDateTime )
 })
 
-#Convert logger data into a long format data frame to enable plotting. DO just for one
+#Convert logger data into a long format data frame to enable plotting. Do just for one
 #weather station to start with
-PlotData <- LoggerData[[1]] %>% ggplot2::fortify()
+PlotData <- LoggerData[[2]] %>% ggplot2::fortify()
 {
 #Prepare a base set of axis
   AWSPlotBase <- PlotData %>%
@@ -88,7 +88,8 @@ AWSPlotUpperTemperature <- AWSPlotBase +
   geom_line(aes(x = Index, y = Air_temp_upper_Avg)) +
   ylab("<sup>o</sup>C") +
   ggtitle("Air temperature") +
-  theme(axis.text.x=element_blank())
+  theme(plot.title = element_text(hjust = 0.1,vjust = -1.5,size=9),
+        axis.text.x=element_blank())
 
 AWSPlotIncomingShortwaveRadiation <- AWSPlotBase +
   geom_line(aes(x = Index, y = incommingSW_Avg)) +
@@ -105,9 +106,9 @@ AWSPlotLongwaveRadiation <- AWSPlotBase +
                       values = c("#c7a53f","#5153a6"))+
   ylab("W/m<sup>2</sup>") +
   ggtitle("Longwave radiation") +
-  theme(legend.position = c(0.04,0.7),
+  theme(legend.position = c(0.04,0.6),
         legend.justification = c(0,1),
-        plot.title = element_text(hjust = 0.1,vjust = -19,size=9),
+        plot.title = element_text(hjust = 0.1,vjust = -2.82,size=9),
         axis.text.x=element_blank()) +
   guides(color=guide_legend(nrow=1))
         
@@ -117,7 +118,8 @@ AWSPlotWindSpeed <- AWSPlotBase +
   ggtitle("Wind speed") +
   scale_y_continuous(position = "right")+
   scale_x_datetime(date_labels = '%H:%M\n%d %b') +
-  theme(axis.text = element_text(size=9))
+  theme(plot.title = element_text(hjust = 0.35,vjust = -1.5,size=9),
+        axis.text = element_text(size=9))
   
 Multiplot <- cowplot::align_plots(AWSPlotUpperTemperature,
                                   AWSPlotIncomingShortwaveRadiation,
@@ -132,8 +134,8 @@ OutputPlot <- ggdraw() + cowplot::draw_plot(Multiplot[[4]],0,0,1,0.35)+
 
 
 #Save as pdf for Overleaf, and tif for Word
-ggsave(file.path(outputDirectory,"WeatherStationPlot.pdf"),OutputPlot,width = 86, height = 125,units="mm", dpi=300, device = "pdf")
-ggsave(file.path(outputDirectory,"WeatherStationPlot.tif"),OutputPlot,width = 86, height = 125,units="mm", dpi=300, device = "tiff")
+ggsave(file.path(outputDirectory,"WeatherStationPlotLower.pdf"),OutputPlot,width = 86, height = 125,units="mm", dpi=300, device = "pdf")
+ggsave(file.path(outputDirectory,"WeatherStationPlotLower.tif"),OutputPlot,width = 86, height = 125,units="mm", dpi=300, device = "tiff")
 }
 
 
