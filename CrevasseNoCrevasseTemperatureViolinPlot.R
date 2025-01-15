@@ -127,9 +127,15 @@ ThreeAM.t.test <- t.test(x=PlotData %>% filter(Class == "Crevassed",DateTime == 
                   y=PlotData %>% filter(Class == "Not-crevassed",DateTime == "2020-02-25 03:00:00")%>% select(Temperature),
                   alternative="two.sided")
 
+ThreeAM.MannWhitney <- wilcox.test(x=PlotData %>% filter(Class == "Crevassed",DateTime == "2020-02-25 03:00:00") %>% select(Temperature),
+                                   y=PlotData %>% filter(Class == "Not-crevassed",DateTime == "2020-02-25 03:00:00")%>% select(Temperature),
+                                   alternative="two.sided")
+
 ThreePM.t.test <- t.test(x=PlotData %>% filter(Class == "Crevassed",DateTime == "2020-02-25 15:00:00") %>% select(Temperature),
                   y=PlotData %>% filter(Class == "Not-crevassed",DateTime == "2020-02-25 15:00:00")%>% select(Temperature),
-                  alternative="two.sided")#Save as pdf for Overleaf, and tif for Word
+                  alternative="two.sided")
+
+#Save as pdf for Overleaf, and tif for Word
 ggsave(file.path(outputDirectory,"CrevasseNoCrevasseTemperatureViolinPlot.pdf"),ViolinBoxPlot,width = 86,units="mm",height = 86, dpi=300, device = "pdf")
 
 ggsave(file.path(outputDirectory,"CrevasseNoCrevasseTemperatureViolinPlot.tif"),ViolinBoxPlot,width = 86, height = 86,units="mm", dpi=300, device = "tiff")

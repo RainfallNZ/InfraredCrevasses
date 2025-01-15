@@ -29,7 +29,8 @@ CrevasseClassifierLowRes <- function(HiResCrevasseClassification,
 #load the crevasse classification data resampled to match the orhtho image resolution
 CrevasseMask <- HiResCrevasseClassification %>% 
   terra::resample(LowResRaster, method="med") %>%
-  terra::mask(AreaOfInterest) %>%
+  terra::mask(AreaOfInterest) 
+if (!is.null(Viewshed)) CrevasseMask <- CrevasseMask %>%
   terra::mask(Viewshed,maskvalues=c(NA,0))
 
 BufferedCrevasses <- HiResCrevasseClassification %>% 

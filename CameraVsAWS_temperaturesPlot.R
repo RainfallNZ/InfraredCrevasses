@@ -1,6 +1,7 @@
 #R Script to create publication-ready plot for paper of temperature time series for
-#the lower weather station's outgoing long-wave sensor-based temperature, the camera-based-temperatures of a weather-station proximal
-#site, and a temperature corrected orthorectified infra red image.
+#1/ the lower weather station's outgoing long-wave sensor-based temperature vs the camera-based-temperatures of a weather-station proximal
+#site
+#2/ Time series of camera-derived crevasse and non-crevasse sample point temperatures
 #Plot is to be formatted for Journal of Glaciology.
 #Guidelines are here:https://www.cambridge.org/core/services/aop-file-manager/file/5b431f1d2c1c7a5063243b24/jglac-instructionsforauthors-11Apr2019.pdf
 #Journal of Glaciology have an Overleaf template to assist with preparing a publication.
@@ -19,12 +20,15 @@
 
 #Check for and load required libraries and packages
 list.of.packages <- c("imager","magick","terra","tidyr","dplyr","ggplot2","ggtext",
-                      "tidyterra","gridExtra","grid","gtable","rasterVis","stringr","xts")
+                      "tidyterra","gridExtra","grid","gtable","rasterVis","stringr","xts","ggpmisc","cowplot")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages,repos='https://cloud.r-project.org')
 
 librariesToLoad <- list.of.packages[!(list.of.packages %in% (.packages()))]
 if(length(librariesToLoad)) sapply(librariesToLoad, library, character.only = TRUE)
+
+#Source the script that prepares the DustNoDust timeseries plot
+source("DustVsNoDust_temperaturesPlot.R")
 
 #Set directory and file names
 ProjectDirectory  <- "D:\\Projects\\UC\\Heather Purdie\\Purdie-TasmanSaddle-Crevasses"
@@ -45,7 +49,7 @@ ExampleIROrthoImageFile  <- file.path(GISDirectory,"OrthoImages","OrthoImage_49_
 AreaOfInterest <- terra::vect(AreaOfInterestFile)
 WeatherStations <- terra::vect(WeatherStaionSitesFile) %>% tidyterra::filter(Comment %in% c("aws lower","aws top"))
 
-#Crevasse sample site coordinates in NZTM. SUbjectively selected from viewing the ortho imagery in GIS together
+#Crevasse sample site coordinates in NZTM. Subjectively selected from viewing the ortho imagery in GIS together
 #with the crevasse-classified layer, and the viewshed layer
 CrevasseSite <- data.frame("y"=5178632,"x"=1385608) %>% terra::vect(geom=c("x","y"),crs = crs(WeatherStations))
 
@@ -131,10 +135,10 @@ InfraRedSamples$CameraAtLowerAWS_Corrected <- InfraRedSamples$CameraAtLowerAWS_R
 InfraRedSamples$IR_Crevasse_Corrected <- InfraRedSamples$Crevasse_Raw - InfraRedSamples$Diff
 InfraRedSamples$Flat_Crevasse_Diff <-  InfraRedSamples$CameraAtLowerAWS_Corrected - InfraRedSamples$IR_Crevasse_Corrected
 
-#Do a timeseries plot showing the flat temperature, crevasse temperature and difference temperature.
-
+#Prepare plot data from the timeseries data
 PlotData <- InfraRedSamples %>% ggplot2::fortify()
 
+#Create a base plot with theme defined
 AWSPlotBase <- PlotData %>%
   ggplot() +
   theme_bw() + 
@@ -147,7 +151,7 @@ AWSPlotBase <- PlotData %>%
         legend.key = element_rect(fill = NA),
         legend.background = element_rect(color = NA, fill = NA),
         legend.box.background = element_rect(color=NA,fill = "transparent"),
-        legend.position = c(0.52,0.45),
+        legend.position = c(0.5,0.25),
         axis.title.y.left = element_markdown(),
         axis.title.y.right = element_markdown(),
         axis.title.x = element_blank(),
@@ -156,7 +160,26 @@ AWSPlotBase <- PlotData %>%
         plot.background = element_rect(colour=NA, fill = "transparent"),
         plot.title = element_text(hjust = 0.1,vjust = -10,size=9))
 
-AWSTemperaturePlot <- AWSPlotBase +
+#Create a plot of the raw camera temperatures vs the offset longwave temperatures
+#Figure out line of best fit equation
+
+
+CameraXVsAWSY <- AWSPlotBase +
+  aes(x = Lower_AWS_surface_offset_TdegC, y =Crevasse_Raw) +
+  geom_point() +
+  stat_poly_line(method = "lm",se=FALSE,color="black") +
+  stat_poly_eq(use_label("eq")) +
+  labs(tag="a") +
+  ylab("Thermal image<br>raw surface temperature (<sup>o</sup>C)") +
+  xlab("Weather station surface temperature (<sup>o</sup>C)") +
+  theme(axis.title.x = element_markdown(margin=margin(-10,0,0,0)),
+        axis.text.x = element_text(margin = margin(0,0,0,0)),
+        axis.text = element_text(size=9))
+
+CameraXVsAWSY
+
+#Do a timeseries plot showing the flat temperature, crevasse temperature and difference temperature.
+CrevasseNonCrevasseTemperaturePlot <- AWSPlotBase +
   geom_line(aes(x = Index, y = CameraAtLowerAWS_Corrected,linetype = "Non-crevassed"),linewidth=1) +
   geom_line(aes(x = Index, y = IR_Crevasse_Corrected,linetype="Crevasse"),linewidth=1) +
   geom_line(aes(x = Index, y = Flat_Crevasse_Diff,linetype="Difference"),linewidth=1) +
@@ -165,76 +188,26 @@ AWSTemperaturePlot <- AWSPlotBase +
                       breaks = c("Difference", "Crevasse", "Non-crevassed"),
                       values = c("Crevasse"=1, "Difference"=3, 
                                  "Non-crevassed"=2)) +
-  ylab("Surface temperature<br>(<sup>o</sup>C)") +
+  ylab("Thermal image<br>corrected surface temperature (<sup>o</sup>C)") +
   scale_x_datetime(date_labels = '%H:%M\n%d %b') +
   theme(axis.text = element_text(size=9))
 
-AWSTemperaturePlot
+CrevasseNonCrevasseTemperaturePlot
+
+DustVsNoDustPlot <- DustVsNoDustPlot()
+
+DustVsNoDustPlot
+
+Multiplot <- cowplot::align_plots(CameraXVsAWSY,
+                                  CrevasseNonCrevasseTemperaturePlot,
+                                  DustVsNoDustPlot,
+                                  align = "hv")
 
 
-#Now do the 3 am example spatial plot
+OutputPlot <- ggdraw() + cowplot::draw_plot(Multiplot[[1]],0,0.66,1,0.33)+
+  cowplot::draw_plot(Multiplot[[2]],0,0.33,1,0.33)+
+  cowplot::draw_plot(Multiplot[[3]],0,0,1,0.33)
 
-IRExample  <- terra::rast(ExampleIROrthoImageFile)
-AreaOfInterest <- terra::project(AreaOfInterest,IRExample)
-Viewshed   <- terra::rast(ViewshedFile) %>% terra::project(IRExample,method="near") %>% terra::mask(AreaOfInterest)
-IRExample  <- terra::mask(IRExample,AreaOfInterest) %>% terra::mask(Viewshed,maskvalues=0)
-
-TemperatureCorrectedIRExample <- IRExample - as.vector(InfraRedSamples$Diff[46])
-
-#Create a plot of the IR image
-IRPlot <- ggplot() +
-  geom_spatraster(data=TemperatureCorrectedIRExample) +
-  geom_spatvector(data = LowerSamplePolygon,fill=NA,linewidth=1) +
-  geom_spatvector_text(data = LowerSamplePolygon,label = "Non-crevassed",vjust="top",hjust="centre",nudge_y = -10) +
-  geom_spatvector(data = CrevasseSamplePolygon,fill=NA,linewidth=1) +
-  geom_spatvector_text(data = CrevasseSamplePolygon,label = "Crevasse",vjust="bottom",hjust="centre",nudge_y = 10) +
-  labs(tag="a") +
-  #  geom_spatvector(data = WeatherStations, shape = 17, size=4) +
-  theme_classic() +
-  theme(axis.line = element_blank(),
-        axis.title = element_blank(),
-        axis.text = element_blank(),
-        axis.ticks = element_blank(),
-        plot.tag = element_text(vjust = -10), #manual position of tag to align with the second plot
-        text=element_text(size=9),
-        legend.text = element_text(size=9),
-        panel.border = element_blank(),
-        legend.key.height = unit(0.5, 'cm'),
-        legend.key.width = unit(0.5, 'cm'),
-        legend.title = element_markdown(vjust = 0.8),
-        legend.position = "bottom",
-        legend.margin = margin(0,0,0,0,'cm'),
-        legend.box.margin=margin(-10,-10,-10,-10),
-        plot.margin=margin(0,0,1,0,'cm')) +
-  guides(fill = guide_colourbar(position="bottom"))+
-  scale_fill_gradientn(colours = c("#30123b","#2fb2f4","#a7fc3a","#fc8524","#7e0502"),
-                       values=c(0,0.25,0.5,0.75,1),
-                       labels = c(-10, -8,-6,-4,-2),
-                       breaks = c(-10,-8,-6,-4,-2),
-                       na.value=NA,
-                       limits=c(-10,-2),
-                       name="Temperature (<sup>o</sup>C)",
-                       guide=guide_colorbar(title.position = "left",ticks = FALSE),
-                       oob=scales::squish)+
-  ggspatial::annotation_scale(style="ticks",text_cex=0.8, tick_height=0)
-
-IRPlot
-
-#Combine using gtables, which enables the spatial plot to fill up the space
-Plot1 <- ggplotGrob(IRPlot)
-Plot2 <- ggplotGrob(AWSTemperaturePlot)
-
-#create a 1x2 empty gtable. Set the row and column sizes explicitly to get alignment correct
-#This was a real hack!!
-tg <- gtable(widths = unit(c(86),c("mm")),heights = unit(c(110,60),c("mm")))
-#Add each grob to it's allocated place.
-HalfPlot <- gtable_add_grob(tg,Plot1, t=1,b=1,l=1,z=Inf,clip="off")
-
-FullPlot <- gtable_add_grob(HalfPlot,Plot2, t=2,b=2,l=1,r=1,z=Inf,clip="off")
-grid.newpage()
-grid.draw(FullPlot)
 
 #Save as pdf for Overleaf, and tif for Word
-ggsave(file.path(outputDirectory,"TemperatureCorrectedOrthoExample.pdf"),FullPlot,width = 86,units="mm",height = 168, dpi=300, device = "pdf")
-
-ggsave(file.path(outputDirectory,"TemperatureCorrectedOrthoExample.tif"),FullPlot,width = 86, height = 168,units="mm", dpi=300, device = "tiff")
+ggsave(file.path(outputDirectory,"CameraVsAWSTemperatures.pdf"),OutputPlot,width = 86,units="mm",height = 234, dpi=300, device = "pdf")

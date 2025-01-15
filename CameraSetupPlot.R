@@ -44,11 +44,21 @@ ViewPlot <- ggplot(CameraViewDataFrame,aes(x,y))+
         plot.tag = element_text(vjust = -8,hjust=-20), #manual position of tag to align with the second plot
         panel.border = element_blank())
 
+GCPs <- data.frame("name"   = c("a","b"),
+                   "column" = c(53,76),
+                   "row"    = c(111,148))
+
 #Create a plot of the IR image
 IRPlot <- ggplot() +
   geom_spatraster(data=IRExample) +
+  geom_point(aes(alpha=""),x=53,y=500,size=3,shape=4,color="black")+
+  geom_point(x=c(53,76,53,188,160,139,172,206),y=285-c(111,148,90,112,155,86,83,103), aes(alpha=rep("",8)),size=3,shape=4,color="black",show.legend=FALSE) +
   theme_classic() +
   coord_fixed(ratio = 1)+
+  scale_alpha_manual(values = 1) +
+  labs(alpha="Control Points")+
+  #guides(alpha = "none")+
+  guides(alpha = guide_legend(direction = "vertical",label.text = element_blank()))+
   theme(axis.line = element_blank(),
         axis.text = element_blank(),
         axis.ticks = element_blank(),
@@ -57,9 +67,10 @@ IRPlot <- ggplot() +
         panel.border = element_blank(),
         legend.key.height = unit(0.5, 'cm'),
         legend.key.width = unit(0.5, 'cm'),
-        legend.title = element_markdown(vjust = 0.8),
+        legend.title = element_markdown(vjust = 0.8,hjust=0.5),
         legend.position = "bottom",
-        legend.margin = margin(0,0,0,0,'cm'),
+        legend.justification.bottom = "left",
+        legend.margin = margin(0,0,0,-0.1,'cm'),
         legend.box.margin=margin(-10,-10,-10,-10),
         plot.margin=margin(0,0,0,0,'cm')) +
 
@@ -67,11 +78,13 @@ IRPlot <- ggplot() +
   scale_fill_gradientn(colours = c("#30123b","#2fb2f4","#a7fc3a","#fc8524","#7e0502"),
                        values=c(0,0.25,0.5,0.75,1),
                        #values=c(0,0.5,1),
-                       labels = c("warmer","colder"),
-                       breaks = c(-6,-18),
+                       #labels = c("warmer","colder"),
+                       labels = c(-18,-15,-12,-9,-6),
+                       #breaks = c(-6,-18),
+                       breaks = c(-18,-15,-12,-9,-6),
                        na.value=NA,
                        limits=c(-18,-6),
-                       name="Temperature",
+                       name="Raw temperature",
                        guide=guide_colorbar(title.position = "left",ticks = FALSE),
                        oob=scales::squish)
   
@@ -110,4 +123,4 @@ grid.draw(CombinedPlot)
 #Save as pdf for Overleaf, and tif for Word
 ggsave(file.path(outputDirectory,"CameraView.pdf"),CombinedPlot,width = 86,units="mm",height = 125, dpi=300, device = "pdf")
 
-ggsave(file.path(outputDirectory,"CameraView.tif"),CombinedPlot,width = 86, height = 125,units="mm", dpi=300, device = "tiff")
+#ggsave(file.path(outputDirectory,"CameraView.tif"),CombinedPlot,width = 86, height = 125,units="mm", dpi=300, device = "tiff")

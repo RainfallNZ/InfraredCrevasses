@@ -93,9 +93,9 @@ AWSPlotUpperTemperature <- AWSPlotBase +
 
 AWSPlotIncomingShortwaveRadiation <- AWSPlotBase +
   geom_line(aes(x = Index, y = incommingSW_Avg)) +
-  ylab("W/m<sup>2</sup>") +
+  ylab("W m<sup>-2</sup>") +
   ggtitle("Incoming shortwave\nradiation") +
-  scale_y_continuous(position = "right") +
+  scale_y_continuous(position = "left") +
   theme(plot.title = element_text(hjust = 0.1,vjust = -13,size=9),
         axis.text.x=element_blank())
 
@@ -104,7 +104,7 @@ AWSPlotLongwaveRadiation <- AWSPlotBase +
   geom_line(aes(x = Index,y=incomingLW_Avg,colour = "Out"))+
   scale_colour_manual(labels=c("Out","In"),
                       values = c("#c7a53f","#5153a6"))+
-  ylab("W/m<sup>2</sup>") +
+  ylab("W m<sup>-2</sup>") +
   ggtitle("Longwave radiation") +
   theme(legend.position = c(0.04,0.6),
         legend.justification = c(0,1),
@@ -114,9 +114,9 @@ AWSPlotLongwaveRadiation <- AWSPlotBase +
         
 AWSPlotWindSpeed <- AWSPlotBase +
   geom_line(aes(x = Index, y = Wind_speed_lower_Avg)) +
-  ylab("m/s") +
+  ylab("m s<sup>-1</sup>") +
   ggtitle("Wind speed") +
-  scale_y_continuous(position = "right")+
+  scale_y_continuous(position = "left")+
   scale_x_datetime(date_labels = '%H:%M\n%d %b') +
   theme(plot.title = element_text(hjust = 0.35,vjust = -1.5,size=9),
         axis.text = element_text(size=9))

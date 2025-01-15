@@ -27,6 +27,7 @@ OrthoFileDirectory<- file.path(GISDirectory,"OrthoImages")
 OrthoFileNames <- list.files(OrthoFileDirectory,full.names = TRUE)
 outputDirectory   <- file.path(ProjectDirectory,"Reports","TablesAndFigures")
 CrevasseClassFile <- file.path(GISDirectory,"CrevasseClassified.tif")
+AreaOfInterestFile<- file.path(DataDirectory,"GIS","IRCameraAOI.shp")
 
 #Load the data
 #Load the temperature-corrected-ortho images
@@ -41,6 +42,8 @@ BufferedCrevasses <- terra::ifel(CrevasseClass < 1, NA, CrevasseClass) %>%
   terra::buffer(3)
 NonCrevasseMask <- terra::ifel(BufferedCrevasses == 1, NA, BufferedCrevasses) %>%
   terra::mask(OrthoData[[1]])
+
+AreaOfInterest <- terra::vect(AreaOfInterestFile)
 
 #Load surface characteristics
 SurfaceCharacteristics <- c("Elevation","Slope","Aspect","AzimuthAngle","AltitudeAngle","DistanceFromCamera")
@@ -58,12 +61,12 @@ SurfaceCharacterData <- lapply(SurfaceCharacterFiles, function(SurfaceCharacterF
   SingleCharactersData
 })
 
-SurfaceCharacterYAxisTitles <- c("Elevation<br>(m)",
-                                  "Slope",
-                                  "Aspect",
-                                  "Horizontal angle<br>from camera",
-                                  "Vertical angle<br>from camera",
-                                  "Distance<br>to camera")
+SurfaceCharacterYAxisTitles <- c("Elevation<br>(m above elipsoid)",
+                                  "Slope<br>(degrees above horizontal)",
+                                  "Aspect<br>(degrees from North)",
+                                  "Horiz. angle from camera<br>(degrees from North)",
+                                  "Vertical angle from camera<br>(degrees above horizontal)",
+                                  "Distance to camera<br>(m)")
 
 #I now need to break the surface characteristic into 19 bins
 
@@ -100,16 +103,15 @@ DefaultAxis <-  ggplot() +
         plot.margin=margin(0,0,0,0,'cm')) +
   scale_fill_gradientn(colours = c("#30123b","#2fb2f4","#a7fc3a","#fc8524","#7e0502"),
                        values=c(0,0.25,0.5,0.75,1),
-                       labels = c(-12, -8,-4,0,4,8),
-                       breaks = c(-12,-8,-4,0,4,8),
+                       labels = c(-12, -9,-6,-3,0,3),
+                       breaks = c(-12,-9,-6,-3,0,3),
                        na.value=NA,
-                       limits=c(-12,8),
+                       limits=c(-12,3),
                        name="Temperature (<sup>o</sup>C)",
                        guide=guide_colorbar(title.position = "left",ticks = FALSE),
                        oob=scales::squish)
 
 SurfaceCharacterTemperaturePlots <- lapply(seq_along(SurfaceCharacteristics), function(SurfaceCharacteristicIndex){
-  
   SingleCharacterData <- ZonedData[[SurfaceCharacteristicIndex]]
   row.names(SingleCharacterData) <- SingleCharacterData[,1]
   SingleCharacterData <- SingleCharacterData[,2:ncol(SingleCharacterData)]
@@ -132,7 +134,8 @@ SurfaceCharacterTemperaturePlots <- lapply(seq_along(SurfaceCharacteristics), fu
 })
 #Stick together as a panel plot
 #Create a gridded plot - takes 30 seconds
-legend_b <- get_legend(SurfaceCharacterTemperaturePlots[[1]])
+#legend_b <- get_legend(SurfaceCharacterTemperaturePlots[[1]])
+legend_b <- get_plot_component(SurfaceCharacterTemperaturePlots[[1]], 'guide-box-bottom',return_all=TRUE)
 #Strip the legends from the plots
 NoLegendPlots <- lapply(SurfaceCharacterTemperaturePlots, function(x) {
   x + theme(legend.position = "none")

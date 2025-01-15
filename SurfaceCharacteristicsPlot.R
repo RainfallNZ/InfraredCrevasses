@@ -55,8 +55,8 @@ names(SurfaceCharacterPlotLimits) <- SurfaceCharacteristics
 SurfaceCharacterData <- lapply(SurfaceCharacterFiles, function(SurfaceCharacterFile) {
   #Load the data file, mask to the viewshed and clip to the area of interest
   SingleCharactersData <- terra::rast(SurfaceCharacterFile) %>%
-    terra::crop(Viewshed) %>%
-    terra::mask(Viewshed,inverse=TRUE, maskvalues=1) %>%
+    #terra::crop(Viewshed) %>%
+    #terra::mask(Viewshed,inverse=TRUE, maskvalues=1) %>%
     terra::mask(AOI) %>%
     terra::crop(AOI)
 })
@@ -98,4 +98,4 @@ FullPlot <- do.call("plot_grid",c(SurfaceCharacteristicPlots,list(ncol=2,
 
 #Save as pdf for Overleaf, and tif for Word
 ggsave(file.path(outputDirectory,"SurfaceCharacteristicsPlot.pdf"),FullPlot,width = 178, height = 205,units="mm", dpi=300, device = "pdf")
-ggsave(file.path(outputDirectory,"SurfaceCharacteristicsPlot.tif"),FullPlot,width = 178, height = 205,units="mm", dpi=300, device = "tiff")
+#ggsave(file.path(outputDirectory,"SurfaceCharacteristicsPlot.tif"),FullPlot,width = 178, height = 205,units="mm", dpi=300, device = "tiff")

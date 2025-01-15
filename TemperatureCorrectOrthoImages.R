@@ -33,6 +33,7 @@ LowerWeatherStationDataFile <- file.path(UCDirectory,"TAS_2020","cr300 data","Ra
 
 #Load the data
 AreaOfInterest <- terra::vect(AreaOfInterestFile)
+Viewshed   <- terra::rast(ViewshedFile) %>% terra::mask(AreaOfInterest)
 WeatherStations <- terra::vect(WeatherStaionSitesFile) %>% tidyterra::filter(Comment %in% c("aws lower","aws top"))
 
 #Crevasse sample site coordinates in NZTM. SUbjectively selected from viewing the ortho imagery in GIS together
@@ -68,6 +69,10 @@ SnowEmissivity <- 0.99 #Need a citation for this, maybe Griggs (1968) Griggs, M.
 #T= (M/sigma/emissivity)^0.25 where M is the radiated energy in watts per square metre, sigma is the staffan-Boltzmann constant, and T is the surface temperature in Kelvin
 Lower_AWS_surfaceTdegK <- (Lower_AWS_Data$outgoingLW_Avg / StefanBoltzmannConstant / SnowEmissivity)^0.25
 Lower_AWS_surfaceTdegC <- Lower_AWS_surfaceTdegK - 273.15
+
+#Assess maximum temperature-sensitivity in terms of surface temperature uncertainty. Apogee quote < 5 % temperature sensitivity over a -15 to 45 degree range.
+MaxTemperatureSensitivityImpactDegC <- (c(1,1.05) * max(Lower_AWS_Data$outgoingLW_Avg) / StefanBoltzmannConstant / SnowEmissivity)^0.25 - 273.15
+
 #Offset the AWS data so that the maximum is 0degC
 Lower_AWS_surface_offset_TdegC <- Lower_AWS_surfaceTdegC - (max(Lower_AWS_surfaceTdegC) - 0)
 #Convert to time series xts objects
@@ -101,3 +106,30 @@ InfraRedSamples$Diff <- InfraRedSamples$CameraAtLowerAWS_Raw - InfraRedSamples$I
 TemperatureCorrectedOrthoRaster <- OrthoRasters - as.vector(InfraRedSamples$Diff[46])
 #writeRaster(TemperatureCorrectedOrthoRaster,file.path(OrthoFileDirectory,"TemperatureCorrected","DeleteMe.tif"),overwrite=TRUE)
 saveRDS(TemperatureCorrectedOrthoRaster,file.path(OrthoFileDirectory,"TemperatureCorrected","TemperatureCorrectedOrthoImages.rds"))
+
+#***Bonus assessment of within-image temperature range.
+#Assess temperature contrast of night time and daytime images, both raw and temperature corrected.
+#1/Get the raw images and mask to the area of interest and the viewshed
+
+AreaOfInterestV2 <- terra::project(AreaOfInterest,OrthoRasters[[1]])
+ViewshedV2   <- terra::project(Viewshed,OrthoRasters[[1]],method="near") %>% terra::mask(AreaOfInterestV2)
+MaskedRawImages  <- terra::mask(OrthoRasters,AreaOfInterestV2) %>% terra::mask(ViewshedV2,maskvalues=0)
+
+#2/Get the max, min and range for each image.
+#this failed because the aluminium plates were very hot compared to everywhere else
+RangeValues <- terra::global(MaskedRawImages,"range",na.rm=TRUE)
+RangeValues$range <- RangeValues$max - RangeValues$min
+#Try 99th to 1st percentile range
+NinetyninthPercentileValues <- terra::global(MaskedRawImages,quantile,probs=c(0.01,0.99),na.rm=TRUE)
+NinetyninthPercentileValues$range <- NinetyninthPercentileValues$X99. - NinetyninthPercentileValues$X1.
+#3/ plot date-time vs range
+plot(y=NinetyninthPercentileValues$range, x=OrthoDateTimes, type="l")
+#4/ Select a representative night-time range, and daytime range
+#5 repeat for corrected images
+
+MaskedCorrectedImages  <- terra::mask(TemperatureCorrectedOrthoRaster,AreaOfInterestV2) %>% terra::mask(ViewshedV2,maskvalues=0)
+
+#Get the 99th to 1st percentile range
+CorrectedNinetyninthPercentileValues <- terra::global(MaskedCorrectedImages,quantile,probs=c(0.01,0.99),na.rm=TRUE)
+CorrectedNinetyninthPercentileValues$range <- CorrectedNinetyninthPercentileValues$X99. - CorrectedNinetyninthPercentileValues$X1.
+plot(y=CorrectedNinetyninthPercentileValues$range, x=OrthoDateTimes, type="l")
